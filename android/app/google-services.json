@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "946030358554",
+    "project_id": "yahala-9b386",
+    "storage_bucket": "yahala-9b386.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:946030358554:android:81d0661552f41b9d0de1a3",
+        "android_client_info": {
+          "package_name": "com.example.yahala_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQ1bWrQist8itSNlj6DeLqNSJ6UD6ni9E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
