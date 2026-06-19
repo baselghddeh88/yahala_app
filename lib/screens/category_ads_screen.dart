@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'ad_details_screen.dart';
 import 'add_post_screen.dart';
+import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -468,7 +469,8 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     final title = data['title']?.toString() ?? '';
     final description = data['description']?.toString() ?? '';
     final city = data['city']?.toString() ?? '';
-    final price = isRestaurantOrStore ? '' : data['price']?.toString() ?? '';
+    final rawPrice = isRestaurantOrStore ? '' : data['price']?.toString() ?? '';
+    final price = rawPrice.isEmpty ? '' : formatMoney(rawPrice);
     final imageUrl = data['imageUrl']?.toString() ?? '';
 
     return InkWell(

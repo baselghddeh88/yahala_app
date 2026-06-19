@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import 'add_post_screen.dart';
 import 'auth_choice_screen.dart';
+import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -482,8 +483,8 @@ class _CouponsScreenState extends State<CouponsScreen> {
     final value =
         data['couponValue']?.toString() ?? data['price']?.toString() ?? '';
     if (value.isEmpty) return t('عرض', 'Offer');
-    if (type == 'percent') return '$value%';
-    if (type == 'amount') return '-$value';
+    if (type == 'percent') return formatPercent(value);
+    if (type == 'amount') return formatMoney(value);
     return value;
   }
 
@@ -766,8 +767,8 @@ class CouponCodeScreen extends StatelessWidget {
     final value =
         data['couponValue']?.toString() ?? data['price']?.toString() ?? '';
     if (value.isEmpty) return t('عرض', 'Offer');
-    if (type == 'percent') return '$value%';
-    if (type == 'amount') return '-$value';
+    if (type == 'percent') return formatPercent(value);
+    if (type == 'amount') return formatMoney(value);
     return value;
   }
 

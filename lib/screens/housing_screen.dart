@@ -5,6 +5,7 @@ import 'details_screen.dart';
 import 'add_post_screen.dart';
 import 'search_screen.dart';
 import '../services/ad_actions.dart';
+import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/paid_category_ads.dart';
@@ -213,7 +214,9 @@ class _HousingScreenState extends State<HousingScreen> {
                         title: title,
                         description: description,
                         city: city,
-                        price: price.isEmpty ? t('غير محدد', 'Not set') : price,
+                        price: price.isEmpty
+                            ? t('غير محدد', 'Not set')
+                            : formatMoney(price),
                         views: isArabic ? '$views مشاهدة' : '$views views',
                         imageUrl: imageUrl,
                         imageUrls: imageUrls,

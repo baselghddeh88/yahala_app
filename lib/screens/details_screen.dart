@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/ad_actions.dart';
+import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -134,7 +135,7 @@ class DetailsScreen extends StatelessWidget {
                               Text(
                                 price.isEmpty
                                     ? t('غير محدد', 'Not specified')
-                                    : price,
+                                    : formatMoney(price),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(

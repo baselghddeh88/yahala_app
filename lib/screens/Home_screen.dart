@@ -21,6 +21,7 @@ import 'ad_details_screen.dart';
 import 'search_screen.dart';
 import '../constants.dart';
 import '../services/app_settings.dart';
+import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -500,8 +501,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _featuredMiniAdCard(String id, Map<String, dynamic> data) {
     final title = data['title']?.toString() ?? '';
-    final subtitle = (data['price']?.toString() ?? '').isNotEmpty
-        ? data['price'].toString()
+    final rawPrice = data['price']?.toString() ?? '';
+    final subtitle = rawPrice.isNotEmpty
+        ? formatMoney(rawPrice)
         : (data['city']?.toString() ?? '');
     final imageUrl = data['imageUrl']?.toString() ?? '';
 

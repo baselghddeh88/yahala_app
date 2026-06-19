@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 
+import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -100,7 +102,7 @@ class _EditAdScreenState extends State<EditAdScreen> {
           'description': descriptionController.text.trim(),
           'city': cityController.text.trim(),
           'phone': phoneController.text.trim(),
-          'price': priceController.text.trim(),
+          'price': cleanMoneyInput(priceController.text),
           'imageUrl': allImages.isNotEmpty ? allImages.first : '',
           'imageUrls': allImages,
           'status': 'pending',
@@ -239,6 +241,11 @@ class _EditAdScreenState extends State<EditAdScreen> {
                 controller: priceController,
                 hint: t('السعر / الراتب', 'Price / Salary'),
                 icon: Icons.attach_money,
+                keyboardType: TextInputType.number,
+                prefixText: '\$ ',
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                ],
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -391,14 +398,22 @@ class _EditAdScreenState extends State<EditAdScreen> {
     required IconData icon,
     int maxLines = 1,
     TextInputType keyboardType = TextInputType.text,
+    String? prefixText,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
       decoration: InputDecoration(
         hintText: hint,
+        prefixText: prefixText,
+        prefixStyle: const TextStyle(
+          color: yaHalaGold,
+          fontWeight: FontWeight.w900,
+        ),
         hintStyle: const TextStyle(color: Colors.grey),
         prefixIcon: Icon(icon, color: Colors.grey),
         filled: true,

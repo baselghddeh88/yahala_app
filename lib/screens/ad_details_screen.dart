@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/ad_actions.dart';
+import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -33,9 +34,10 @@ class AdDetailsScreen extends StatelessWidget {
     final zipCode = data['zipCode']?.toString() ?? '';
     final phone = data['phone']?.toString() ?? '';
     final category = data['category']?.toString() ?? '';
-    final price = category == 'مطاعم ومحلات'
+    final rawPrice = category == 'مطاعم ومحلات'
         ? ''
         : data['price']?.toString() ?? '';
+    final price = rawPrice.isEmpty ? '' : formatMoney(rawPrice);
     final imageUrl = data['imageUrl']?.toString() ?? '';
     final imageUrls = List<String>.from(data['imageUrls'] ?? []);
     final hasContactOptions =

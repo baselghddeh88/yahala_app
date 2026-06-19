@@ -5,6 +5,7 @@ import 'details_screen.dart';
 import 'add_post_screen.dart';
 import 'search_screen.dart';
 import '../services/ad_actions.dart';
+import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/paid_category_ads.dart';
@@ -209,7 +210,7 @@ class _JobsScreenState extends State<JobsScreen> {
                         city: city,
                         salary: price.isEmpty
                             ? t('غير محدد', 'Not set')
-                            : price,
+                            : formatMoney(price),
                         views: isArabic ? '$views مشاهدة' : '$views views',
                         imageUrl: imageUrl,
                         imageUrls: imageUrls,

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'ad_details_screen.dart';
 import 'question_details_screen.dart';
+import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -1844,7 +1845,7 @@ class _AdminScreenState extends State<AdminScreen>
     final description = descriptionController.text.trim();
     final city = cityController.text.trim();
     final phone = phoneController.text.trim();
-    final price = priceController.text.trim();
+    final price = cleanMoneyInput(priceController.text);
 
     titleController.dispose();
     descriptionController.dispose();

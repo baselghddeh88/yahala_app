@@ -5,7 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 
+import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -218,7 +220,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'zipCode': zipController.text.trim(),
         if (isCoupon) ...{'merchantName': descriptionController.text.trim()},
         'phone': phoneController.text.trim(),
-        'price': priceController.text.trim(),
+        'price': cleanMoneyInput(priceController.text),
         'category': selectedCategory,
         if (isPaidAdRequest) ...{
           'adPlacement': adPlacement,
@@ -232,7 +234,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
         if (isHousing) 'housingType': housingType,
         if (isCoupon) ...{
           'couponType': couponType,
-          'couponValue': couponValueController.text.trim(),
+          'couponValue': couponType == 'percent'
+              ? cleanPercentInput(couponValueController.text)
+              : couponType == 'amount'
+              ? cleanMoneyInput(couponValueController.text)
+              : couponValueController.text.trim(),
           'couponEndsAt': Timestamp.fromDate(couponEndDate!),
           'couponLimit': int.tryParse(couponLimitController.text.trim()) ?? 0,
           'couponTerms': couponTermsController.text.trim(),
@@ -443,7 +449,16 @@ class _AddPostScreenState extends State<AddPostScreen> {
               if (selectedCategory != 'سؤال') _contactOptions(),
               if (selectedCategory != 'سؤال' && (allowCall || allowSms))
                 _input(t('رقم الهاتف', 'Phone Number'), phoneController),
-              if (!isRestaurantOrStore) _input(priceHint(), priceController),
+              if (!isRestaurantOrStore)
+                _input(
+                  priceHint(),
+                  priceController,
+                  keyboardType: TextInputType.number,
+                  prefixText: '\$ ',
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                ),
 
               const SizedBox(height: 16),
 
@@ -839,6 +854,17 @@ class _AddPostScreenState extends State<AddPostScreen> {
               icon: _couponValueIcon(),
               hint: _couponValueHint(),
               controller: couponValueController,
+              keyboardType: couponType == 'percent' || couponType == 'amount'
+                  ? TextInputType.number
+                  : TextInputType.text,
+              suffixText: couponType == 'percent'
+                  ? '%'
+                  : couponType == 'amount'
+                  ? '\$'
+                  : null,
+              inputFormatters: couponType == 'percent' || couponType == 'amount'
+                  ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))]
+                  : null,
             ),
           ],
           _couponInput(
@@ -925,6 +951,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
     required TextEditingController controller,
     int lines = 1,
     TextInputType? keyboardType,
+    String? suffixText,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -950,12 +978,18 @@ class _AddPostScreenState extends State<AddPostScreen> {
         controller: controller,
         maxLines: lines,
         keyboardType: keyboardType ?? TextInputType.text,
+        inputFormatters: inputFormatters,
         style: TextStyle(
           color: widget.isDark ? Colors.white : Colors.black,
           fontWeight: FontWeight.w700,
         ),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: yaHalaGreen),
+          suffixText: suffixText,
+          suffixStyle: const TextStyle(
+            color: yaHalaGold,
+            fontWeight: FontWeight.w900,
+          ),
           hintText: hint,
           hintStyle: const TextStyle(
             color: Color(0xFF8D8D8D),
@@ -1142,21 +1176,31 @@ class _AddPostScreenState extends State<AddPostScreen> {
     String hint,
     TextEditingController controller, {
     int lines = 1,
+    TextInputType? keyboardType,
+    String? prefixText,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         maxLines: lines,
+        inputFormatters: inputFormatters,
         style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
         keyboardType:
-            hint.contains('الهاتف') ||
-                hint.contains('Phone') ||
-                hint.contains('ZIP')
-            ? TextInputType.phone
-            : TextInputType.text,
+            keyboardType ??
+            (hint.contains('الهاتف') ||
+                    hint.contains('Phone') ||
+                    hint.contains('ZIP')
+                ? TextInputType.phone
+                : TextInputType.text),
         decoration: InputDecoration(
           hintText: hint,
+          prefixText: prefixText,
+          prefixStyle: const TextStyle(
+            color: yaHalaGold,
+            fontWeight: FontWeight.w900,
+          ),
           hintStyle: const TextStyle(color: Colors.grey),
           filled: true,
           fillColor: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
