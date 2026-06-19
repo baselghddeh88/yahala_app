@@ -90,8 +90,8 @@ class DetailsScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : Colors.black.withOpacity(0.08),
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.08),
                       ),
                     ),
                     child: Column(
@@ -124,8 +124,8 @@ class DetailsScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: isDark
-                                  ? Colors.white.withOpacity(0.06)
-                                  : Colors.black.withOpacity(0.06),
+                                  ? Colors.white.withValues(alpha: 0.06)
+                                  : Colors.black.withValues(alpha: 0.06),
                             ),
                           ),
                           child: Column(
@@ -135,6 +135,8 @@ class DetailsScreen extends StatelessWidget {
                                 price.isEmpty
                                     ? t('غير محدد', 'Not specified')
                                     : price,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: yaHalaGold,
                                   fontSize: 28,
@@ -224,8 +226,8 @@ class DetailsScreen extends StatelessWidget {
                         const SizedBox(height: 22),
                         Divider(
                           color: isDark
-                              ? Colors.white.withOpacity(0.08)
-                              : Colors.black.withOpacity(0.08),
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.black.withValues(alpha: 0.08),
                         ),
                         const SizedBox(height: 18),
 
@@ -359,8 +361,8 @@ class DetailsScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: isDark
-                                      ? Colors.white.withOpacity(0.08)
-                                      : Colors.black.withOpacity(0.08),
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : Colors.black.withValues(alpha: 0.08),
                                 ),
                               ),
                               child: FavoriteButton(

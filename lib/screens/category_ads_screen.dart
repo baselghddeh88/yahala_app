@@ -546,18 +546,27 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                         Expanded(
                           child: Text(
                             city,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.grey,
                               fontSize: 12,
                             ),
                           ),
                         ),
+                      if (city.isNotEmpty && price.isNotEmpty)
+                        const SizedBox(width: 8),
                       if (price.isNotEmpty)
-                        Text(
-                          price,
-                          style: const TextStyle(
-                            color: yaHalaGold,
-                            fontWeight: FontWeight.w900,
+                        Flexible(
+                          child: Text(
+                            price,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              color: yaHalaGold,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                     ],

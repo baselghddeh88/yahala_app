@@ -425,8 +425,8 @@ Widget _jobCard({
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: isDark
-              ? Colors.white.withOpacity(0.08)
-              : Colors.black.withOpacity(0.08),
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
         ),
       ),
       child: Column(
@@ -485,15 +485,22 @@ Widget _jobCard({
                 child: Text(
                   city.isEmpty ? '-' : city,
                   style: const TextStyle(color: Colors.grey),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Text(
-                salary,
-                style: const TextStyle(
-                  color: yaHalaGold,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  salary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    color: yaHalaGold,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
                 ),
               ),
             ],

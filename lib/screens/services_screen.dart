@@ -437,6 +437,8 @@ Widget _serviceCard({
               fontSize: 19,
               fontWeight: FontWeight.w900,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
           Text(
@@ -454,14 +456,22 @@ Widget _serviceCard({
                 child: Text(
                   city.isEmpty ? '-' : city,
                   style: const TextStyle(color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Text(
-                price,
-                style: const TextStyle(
-                  color: yaHalaGold,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 20,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  price,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    color: yaHalaGold,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                  ),
                 ),
               ),
             ],
