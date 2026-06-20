@@ -51,6 +51,31 @@ class AdActions {
     }
   }
 
+  static Future<void> openMap(
+    BuildContext context,
+    String address, {
+    String city = '',
+    String zipCode = '',
+    required bool isArabic,
+  }) async {
+    final query = [address, city, zipCode]
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .join(', ');
+    if (query.isEmpty) return;
+
+    final launched = await launchUrl(
+      Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': query}),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      _showMessage(
+        context,
+        isArabic ? 'تعذر فتح الخرائط' : 'Could not open maps',
+      );
+    }
+  }
+
   static Future<void> addFavorite(
     BuildContext context, {
     required String adId,

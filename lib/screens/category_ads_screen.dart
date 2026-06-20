@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'ad_details_screen.dart';
 import 'add_post_screen.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
@@ -138,13 +139,12 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                     );
                   }
 
-                  final ads = snapshot.data!.docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data['isFeatured'] != true &&
-                        data['adPlacement'] != 'vip_slider' &&
-                        data['adPlacement'] != 'featured' &&
-                        _matchesFilters(data);
-                  }).toList();
+                  final ads = sortAdsByPromotion(
+                    snapshot.data!.docs.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return _matchesFilters(data);
+                    }),
+                  );
 
                   if (ads.isEmpty) {
                     return Text(
@@ -306,12 +306,9 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
-        final featured = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['isFeatured'] == true ||
-              data['adPlacement'] == 'vip_slider' ||
-              data['adPlacement'] == 'featured';
-        }).toList();
+        final featured = sortPaidAdsByPromotion(
+          snapshot.data!.docs,
+        ).take(15).toList();
 
         if (featured.isEmpty) return const SizedBox.shrink();
 
@@ -349,7 +346,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     final title = data['title']?.toString() ?? '';
     final city = data['city']?.toString() ?? data['address']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
-    final vip = data['adPlacement'] == 'vip_slider';
+    final vip = isVipAd(data);
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -471,7 +468,9 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     final city = data['city']?.toString() ?? '';
     final rawPrice = isRestaurantOrStore ? '' : data['price']?.toString() ?? '';
     final price = rawPrice.isEmpty ? '' : formatMoney(rawPrice);
+    final eventDate = _formatTimestampDate(data['eventDate']);
     final imageUrl = data['imageUrl']?.toString() ?? '';
+    final trailingInfo = eventDate.isNotEmpty ? eventDate : price;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -556,12 +555,12 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                             ),
                           ),
                         ),
-                      if (city.isNotEmpty && price.isNotEmpty)
+                      if (city.isNotEmpty && trailingInfo.isNotEmpty)
                         const SizedBox(width: 8),
-                      if (price.isNotEmpty)
+                      if (trailingInfo.isNotEmpty)
                         Flexible(
                           child: Text(
-                            price,
+                            trailingInfo,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.end,
@@ -580,5 +579,13 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
         ),
       ),
     );
+  }
+
+  String _formatTimestampDate(dynamic value) {
+    if (value is! Timestamp) return '';
+    final date = value.toDate();
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 }

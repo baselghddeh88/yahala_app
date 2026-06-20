@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../utils/ad_promotion.dart';
 import 'edit_ad_screen.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -111,6 +112,8 @@ class MyAdsScreen extends StatelessWidget {
     final city = data['city']?.toString() ?? '';
     final status = data['status']?.toString() ?? 'pending';
     final imageUrl = data['imageUrl']?.toString() ?? '';
+    final rejectionReason = data['rejectionReason']?.toString() ?? '';
+    final paymentStatus = data['paymentStatus']?.toString() ?? '';
 
     Color statusColor;
     String statusText;
@@ -187,29 +190,53 @@ class MyAdsScreen extends StatelessWidget {
                       style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _chip(statusText, statusColor),
+                        if (paymentStatus == 'free_pilot')
+                          _chip(t('مجاني حاليا', 'Free pilot'), yaHalaGreen),
+                      ],
                     ),
                   ],
                 ),
               ),
             ],
           ),
+          if (status == 'rejected' && rejectionReason.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: isDark ? 0.18 : 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.redAccent,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${t('سبب الرفض', 'Rejection reason')}: $rejectionReason',
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        height: 1.45,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Align(
             alignment: isArabic ? Alignment.centerLeft : Alignment.centerRight,
@@ -287,12 +314,33 @@ class MyAdsScreen extends StatelessWidget {
   }
 
   String _subtitle(String category, String city, String placement) {
-    if (placement == 'vip_slider') {
+    if (placement == vipAdPlacement) {
       return t('طلب إعلان VIP أعلى الصفحة', 'Top Page VIP Ad Request');
     }
-    if (placement == 'featured') {
-      return t('طلب إعلان مميز', 'Featured Ad Request');
+    if (placement == featuredHomeAdPlacement) {
+      return t('طلب إعلان مميز تحت VIP', 'Featured Ad Request');
+    }
+    if (placement == categoryTopAdPlacement) {
+      return t('طلب أولوية أول 10 بالقسم', 'Top 10 Category Request');
     }
     return city.isEmpty ? category : '$category • $city';
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 }

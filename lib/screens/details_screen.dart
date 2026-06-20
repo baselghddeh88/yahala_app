@@ -53,6 +53,8 @@ class DetailsScreen extends StatelessWidget {
     final allowCall = hasContactOptions ? data['allowCall'] == true : true;
     final allowSms = hasContactOptions ? data['allowSms'] == true : true;
     final allowInAppMessage = data['allowInAppMessage'] == true;
+    final showCall = allowCall && phone.trim().isNotEmpty;
+    final showSms = allowSms && phone.trim().isNotEmpty;
     final address = data['address']?.toString() ?? '';
     final zipCode = data['zipCode']?.toString() ?? '';
 
@@ -257,7 +259,7 @@ class DetailsScreen extends StatelessWidget {
 
                         Row(
                           children: [
-                            if (allowCall)
+                            if (showCall)
                               Expanded(
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
@@ -267,13 +269,11 @@ class DetailsScreen extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                   ),
-                                  onPressed: phone.isEmpty
-                                      ? null
-                                      : () => AdActions.callPhone(
-                                          context,
-                                          phone,
-                                          isArabic: isArabic,
-                                        ),
+                                  onPressed: () => AdActions.callPhone(
+                                    context,
+                                    phone,
+                                    isArabic: isArabic,
+                                  ),
                                   icon: const Icon(
                                     Icons.phone,
                                     color: Colors.white,
@@ -287,10 +287,10 @@ class DetailsScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                            if (allowCall && (allowSms || allowInAppMessage))
+                            if (showCall && (showSms || allowInAppMessage))
                               const SizedBox(width: 10),
 
-                            if (allowSms)
+                            if (showSms)
                               Expanded(
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
@@ -300,13 +300,11 @@ class DetailsScreen extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                   ),
-                                  onPressed: phone.isEmpty
-                                      ? null
-                                      : () => AdActions.sendSms(
-                                          context,
-                                          phone,
-                                          isArabic: isArabic,
-                                        ),
+                                  onPressed: () => AdActions.sendSms(
+                                    context,
+                                    phone,
+                                    isArabic: isArabic,
+                                  ),
                                   icon: const Icon(
                                     Icons.sms,
                                     color: Colors.white,
@@ -320,7 +318,7 @@ class DetailsScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                            if (allowSms && allowInAppMessage)
+                            if (showSms && allowInAppMessage)
                               const SizedBox(width: 10),
                             if (allowInAppMessage)
                               Expanded(

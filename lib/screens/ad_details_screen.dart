@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/ad_actions.dart';
 import '../utils/value_formatters.dart';
@@ -9,7 +12,7 @@ const Color yaHalaGold = Color(0xFFc9952a);
 const Color bgDark = Color(0xFF0e1621);
 const Color cardColor = Color(0xFF1c2b3a);
 
-class AdDetailsScreen extends StatelessWidget {
+class AdDetailsScreen extends StatefulWidget {
   final bool isArabic;
   final bool isDark;
   final Map<String, dynamic> data;
@@ -23,7 +26,43 @@ class AdDetailsScreen extends StatelessWidget {
     this.adId = '',
   });
 
+  @override
+  State<AdDetailsScreen> createState() => _AdDetailsScreenState();
+}
+
+class _AdDetailsScreenState extends State<AdDetailsScreen> {
+  bool get isArabic => widget.isArabic;
+  bool get isDark => widget.isDark;
+  Map<String, dynamic> get data => widget.data;
+  String get adId => widget.adId;
+
+  @override
+  void initState() {
+    super.initState();
+    _recordViewOnce();
+  }
+
   String t(String ar, String en) => isArabic ? ar : en;
+
+  Future<void> _recordViewOnce() async {
+    if (adId.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || data['userId']?.toString() == user.uid) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final viewKey = 'viewed_ad_$adId';
+    if (prefs.getBool(viewKey) == true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('ads').doc(adId).update({
+        'views': FieldValue.increment(1),
+      });
+      await prefs.setBool(viewKey, true);
+    } catch (_) {
+      // View counts are nice-to-have; never block the details page for them.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,11 +72,13 @@ class AdDetailsScreen extends StatelessWidget {
     final address = data['address']?.toString() ?? '';
     final zipCode = data['zipCode']?.toString() ?? '';
     final phone = data['phone']?.toString() ?? '';
+    final formattedPhone = formatPhoneNumber(phone);
     final category = data['category']?.toString() ?? '';
     final rawPrice = category == 'مطاعم ومحلات'
         ? ''
         : data['price']?.toString() ?? '';
     final price = rawPrice.isEmpty ? '' : formatMoney(rawPrice);
+    final eventDate = _formatTimestampDate(data['eventDate']);
     final imageUrl = data['imageUrl']?.toString() ?? '';
     final imageUrls = List<String>.from(data['imageUrls'] ?? []);
     final hasContactOptions =
@@ -47,6 +88,8 @@ class AdDetailsScreen extends StatelessWidget {
     final allowCall = hasContactOptions ? data['allowCall'] == true : true;
     final allowSms = hasContactOptions ? data['allowSms'] == true : true;
     final allowInAppMessage = data['allowInAppMessage'] == true;
+    final showCall = allowCall && phone.trim().isNotEmpty;
+    final showSms = allowSms && phone.trim().isNotEmpty;
 
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
@@ -99,6 +142,7 @@ class AdDetailsScreen extends StatelessWidget {
                   _chip(category.isEmpty ? t('عام', 'General') : category),
                   if (city.isNotEmpty) _chip(city),
                   if (zipCode.isNotEmpty) _chip(zipCode),
+                  if (eventDate.isNotEmpty) _chip(eventDate, gold: true),
                   if (price.isNotEmpty) _chip(price, gold: true),
                 ],
               ),
@@ -108,9 +152,16 @@ class AdDetailsScreen extends StatelessWidget {
               if (city.isNotEmpty ||
                   address.isNotEmpty ||
                   zipCode.isNotEmpty ||
+                  eventDate.isNotEmpty ||
                   phone.isNotEmpty)
                 _infoBox(
                   children: [
+                    if (eventDate.isNotEmpty)
+                      _infoRow(
+                        Icons.event,
+                        t('تاريخ الفعالية', 'Event date'),
+                        eventDate,
+                      ),
                     if (city.isNotEmpty)
                       _infoRow(Icons.location_city, t('المدينة', 'City'), city),
                     if (address.isNotEmpty)
@@ -118,11 +169,28 @@ class AdDetailsScreen extends StatelessWidget {
                         Icons.location_on,
                         t('العنوان', 'Address'),
                         address,
+                        onTap: () => AdActions.openMap(
+                          context,
+                          address,
+                          city: city,
+                          zipCode: zipCode,
+                          isArabic: isArabic,
+                        ),
                       ),
                     if (zipCode.isNotEmpty)
                       _infoRow(Icons.pin_drop, 'ZIP', zipCode),
                     if (phone.isNotEmpty)
-                      _infoRow(Icons.phone, t('الهاتف', 'Phone'), phone),
+                      _infoRow(
+                        Icons.phone,
+                        t('الهاتف', 'Phone'),
+                        formattedPhone,
+                        valueDirection: TextDirection.ltr,
+                        onTap: () => AdActions.callPhone(
+                          context,
+                          phone,
+                          isArabic: isArabic,
+                        ),
+                      ),
                   ],
                 ),
 
@@ -148,10 +216,10 @@ class AdDetailsScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              if (phone.isNotEmpty || allowInAppMessage)
+              if (showCall || showSms || allowInAppMessage)
                 Row(
                   children: [
-                    if (allowCall)
+                    if (showCall)
                       Expanded(
                         child: SizedBox(
                           height: 54,
@@ -162,13 +230,11 @@ class AdDetailsScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            onPressed: phone.isEmpty
-                                ? null
-                                : () => AdActions.callPhone(
-                                    context,
-                                    phone,
-                                    isArabic: isArabic,
-                                  ),
+                            onPressed: () => AdActions.callPhone(
+                              context,
+                              phone,
+                              isArabic: isArabic,
+                            ),
                             icon: const Icon(Icons.phone, color: Colors.white),
                             label: Text(
                               t('اتصال', 'Call'),
@@ -180,9 +246,9 @@ class AdDetailsScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (allowCall && (allowSms || allowInAppMessage))
+                    if (showCall && (showSms || allowInAppMessage))
                       const SizedBox(width: 10),
-                    if (allowSms)
+                    if (showSms)
                       Expanded(
                         child: SizedBox(
                           height: 54,
@@ -193,13 +259,11 @@ class AdDetailsScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            onPressed: phone.isEmpty
-                                ? null
-                                : () => AdActions.sendSms(
-                                    context,
-                                    phone,
-                                    isArabic: isArabic,
-                                  ),
+                            onPressed: () => AdActions.sendSms(
+                              context,
+                              phone,
+                              isArabic: isArabic,
+                            ),
                             icon: const Icon(Icons.sms, color: Colors.white),
                             label: Text(
                               t('رسالة', 'SMS'),
@@ -211,8 +275,7 @@ class AdDetailsScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (allowSms && allowInAppMessage)
-                      const SizedBox(width: 10),
+                    if (showSms && allowInAppMessage) const SizedBox(width: 10),
                     if (allowInAppMessage)
                       Expanded(
                         child: SizedBox(
@@ -293,9 +356,24 @@ class AdDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+  Widget _infoRow(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onTap,
+    TextDirection? valueDirection,
+  }) {
+    final displayValue = isolateLeftToRight(value);
+    final effectiveDirection =
+        valueDirection ??
+        (containsLatinOrDigits(value)
+            ? TextDirection.ltr
+            : isArabic
+            ? TextDirection.rtl
+            : TextDirection.ltr);
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
           Icon(icon, color: yaHalaGreen, size: 20),
@@ -308,10 +386,32 @@ class AdDetailsScreen extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(color: Colors.grey)),
+            child: Directionality(
+              textDirection: effectiveDirection,
+              child: Text(
+                displayValue,
+                textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                style: TextStyle(
+                  color: onTap == null ? Colors.grey : yaHalaGreen,
+                  fontWeight: onTap == null ? FontWeight.w500 : FontWeight.w900,
+                  decoration: onTap == null ? null : TextDecoration.underline,
+                  decorationColor: yaHalaGreen,
+                ),
+              ),
+            ),
           ),
+          if (onTap != null)
+            const Icon(Icons.open_in_new, color: yaHalaGold, size: 16),
         ],
       ),
+    );
+
+    if (onTap == null) return content;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: content,
     );
   }
 
@@ -401,6 +501,14 @@ class AdDetailsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  String _formatTimestampDate(dynamic value) {
+    if (value is! Timestamp) return '';
+    final date = value.toDate();
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 }
 

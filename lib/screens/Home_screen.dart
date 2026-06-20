@@ -21,6 +21,7 @@ import 'ad_details_screen.dart';
 import 'search_screen.dart';
 import '../constants.dart';
 import '../services/app_settings.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
@@ -50,9 +51,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _featuredPageController = PageController(
     viewportFraction: 0.92,
   );
+  final PageController _featuredAdsPageController = PageController();
   Timer? _featuredTimer;
+  Timer? _featuredAdsTimer;
   int _featuredIndex = 0;
   int _featuredAdsCount = 0;
+  int _featuredMiniIndex = 0;
+  int _featuredMiniCount = 0;
 
   @override
   void initState() {
@@ -60,12 +65,15 @@ class _HomeScreenState extends State<HomeScreen> {
     isArabic = widget.initialArabic;
     isDark = widget.initialDark;
     _startFeaturedAutoSlide();
+    _startFeaturedAdsAutoSlide();
   }
 
   @override
   void dispose() {
     _featuredTimer?.cancel();
+    _featuredAdsTimer?.cancel();
     _featuredPageController.dispose();
+    _featuredAdsPageController.dispose();
     super.dispose();
   }
 
@@ -80,6 +88,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final nextIndex = (_featuredIndex + 1) % _featuredAdsCount;
       _featuredPageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _startFeaturedAdsAutoSlide() {
+    _featuredAdsTimer?.cancel();
+    _featuredAdsTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted ||
+          !_featuredAdsPageController.hasClients ||
+          _featuredMiniCount <= 1) {
+        return;
+      }
+
+      final nextIndex = (_featuredMiniIndex + 1) % _featuredMiniCount;
+      _featuredAdsPageController.animateToPage(
         nextIndex,
         duration: const Duration(milliseconds: 450),
         curve: Curves.easeOutCubic,
@@ -261,7 +287,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             final slides = <Map<String, dynamic>>[];
 
-            for (final doc in adsSnapshot.data!.docs) {
+            final vipAds = sortAdsByPromotion(adsSnapshot.data!.docs).take(5);
+            for (final doc in vipAds) {
               final data = doc.data() as Map<String, dynamic>;
               if ((data['imageUrl']?.toString() ?? '').isNotEmpty) {
                 slides.add({...data, 'adId': doc.id});
@@ -457,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
       stream: FirebaseFirestore.instance
           .collection('ads')
           .where('status', isEqualTo: 'approved')
-          .limit(20)
+          .limit(50)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -471,29 +498,73 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        final ads = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['isFeatured'] == true;
-        }).toList();
+        final ads = sortPaidAdsByPromotion(
+          snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final placement = data['adPlacement']?.toString() ?? '';
+            return placement == featuredHomeAdPlacement ||
+                data['paidAdType'] == 'featured' ||
+                isFeaturedAd(data);
+          }),
+        ).take(10).toList();
 
         if (ads.isEmpty) {
+          _featuredMiniCount = 0;
+          _featuredMiniIndex = 0;
           return _featuredMiniPlaceholder();
         }
 
-        return SizedBox(
-          height: 122,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: ads.length,
-            itemBuilder: (context, index) {
-              final doc = ads[index];
-              final data = doc.data() as Map<String, dynamic>;
-              return SizedBox(
-                width: 230,
-                child: _featuredMiniAdCard(doc.id, data),
-              );
-            },
-          ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final adsPerPage = constraints.maxWidth >= 700 ? 3 : 2;
+            final pageCount = (ads.length / adsPerPage).ceil();
+
+            _featuredMiniCount = pageCount;
+            if (_featuredMiniIndex >= _featuredMiniCount) {
+              _featuredMiniIndex = 0;
+            }
+
+            return Column(
+              children: [
+                SizedBox(
+                  height: 142,
+                  child: PageView.builder(
+                    controller: _featuredAdsPageController,
+                    itemCount: pageCount,
+                    onPageChanged: (index) {
+                      setState(() => _featuredMiniIndex = index);
+                    },
+                    itemBuilder: (context, pageIndex) {
+                      final start = pageIndex * adsPerPage;
+                      final pageAds = ads.skip(start).take(adsPerPage).toList();
+
+                      return Row(
+                        children: [
+                          for (var index = 0; index < adsPerPage; index++) ...[
+                            Expanded(
+                              child: index < pageAds.length
+                                  ? _featuredMiniAdCard(
+                                      pageAds[index].id,
+                                      pageAds[index].data()
+                                          as Map<String, dynamic>,
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            if (index != adsPerPage - 1)
+                              const SizedBox(width: 10),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                if (_featuredMiniCount > 1) ...[
+                  const SizedBox(height: 10),
+                  _dots(_featuredMiniCount, _featuredMiniIndex),
+                ],
+              ],
+            );
+          },
         );
       },
     );
@@ -522,8 +593,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Container(
-        margin: const EdgeInsetsDirectional.only(end: 12),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: isDark ? cardColor : Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -533,50 +603,46 @@ class _HomeScreenState extends State<HomeScreen> {
                 : Colors.black.withValues(alpha: 0.06),
           ),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 66,
-              height: 66,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: yaHalaGold.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: imageUrl.isEmpty
-                  ? const Icon(Icons.star, color: yaHalaGold)
-                  : Image.network(imageUrl, fit: BoxFit.cover),
-            ),
-            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title.isEmpty ? t('إعلان مميز', 'Featured ad') : title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: yahalaText(isDark),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: yaHalaGold,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ],
+              child: Container(
+                width: double.infinity,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: yaHalaGold.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: imageUrl.isEmpty
+                    ? const Icon(Icons.star, color: yaHalaGold)
+                    : Image.network(imageUrl, fit: BoxFit.cover),
               ),
             ),
+            const SizedBox(height: 7),
+            Text(
+              title.isEmpty ? t('إعلان مميز', 'Featured ad') : title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: yahalaText(isDark),
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: yaHalaGold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -705,10 +771,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _featuredDots(int count) {
+    return _dots(count, _featuredIndex);
+  }
+
+  Widget _dots(int count, int activeIndex) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(count, (index) {
-        final active = index == _featuredIndex;
+        final active = index == activeIndex;
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 220),
@@ -733,35 +803,30 @@ class _HomeScreenState extends State<HomeScreen> {
       {
         'icon': Icons.work,
         'label': t('وظائف', 'Jobs'),
-        'count': '124',
         'color': yaHalaGreen,
         'screen': JobsScreen(isArabic: isArabic, isDark: isDark),
       },
       {
         'icon': Icons.home,
         'label': t('سكن', 'Housing'),
-        'count': '87',
         'color': yaHalaGold,
         'screen': HousingScreen(isArabic: isArabic, isDark: isDark),
       },
       {
         'icon': Icons.handyman,
         'label': t('خدمات', 'Services'),
-        'count': '96',
         'color': yaHalaGreen,
         'screen': ServicesScreen(isArabic: isArabic, isDark: isDark),
       },
       {
         'icon': Icons.local_offer,
         'label': t('كوبونات', 'Coupons'),
-        'count': '43',
         'color': yaHalaGold,
         'screen': CouponsScreen(isArabic: isArabic, isDark: isDark),
       },
       {
         'icon': Icons.forum,
         'label': t('اسأل الجالية', 'Ask Community'),
-        'count': '156',
         'color': yaHalaGreen,
         'screen': CommunityScreen(isArabic: isArabic, isDark: isDark),
       },
@@ -789,7 +854,6 @@ class _HomeScreenState extends State<HomeScreen> {
       {
         'icon': Icons.add_circle_outline,
         'label': t('أضف إعلان', 'Add Post'),
-        'count': '➕',
         'color': yaHalaGold,
         'screen': AddPostScreen(isArabic: isArabic, isDark: isDark),
       },
@@ -842,11 +906,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  cat['count'] as String,
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
-                ),
               ],
             ),
           ),
@@ -865,7 +924,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return {
       'icon': icon,
       'label': t(labelAr, labelEn),
-      'count': t('جديد', 'New'),
       'color': color,
       'screen': CategoryAdsScreen(
         isArabic: isArabic,
@@ -921,19 +979,55 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        TextButton.icon(
-          style: TextButton.styleFrom(
-            foregroundColor: yaHalaGreen,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-          onPressed: () => _openPaidAdRequest(placement),
-          icon: const Icon(Icons.add_circle_outline, size: 18),
-          label: Text(
-            t('أضف', 'Add'),
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
+        Wrap(
+          spacing: 2,
+          children: [
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: yaHalaGold,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              onPressed: () => _openPaidAdsList(placement, title),
+              child: Text(
+                t('إظهار الكل', 'View all'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: yaHalaGreen,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              onPressed: () => _openPaidAdRequest(placement),
+              icon: const Icon(Icons.add_circle_outline, size: 17),
+              label: Text(
+                t('أضف', 'Add'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  void _openPaidAdsList(String placement, String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaidAdsListScreen(
+          isArabic: isArabic,
+          isDark: isDark,
+          placement: placement,
+          title: title,
+        ),
+      ),
     );
   }
 
@@ -944,7 +1038,6 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => AddPostScreen(
           isArabic: isArabic,
           isDark: isDark,
-          initialCategory: 'إعلان مدفوع',
           initialAdPlacement: placement,
         ),
       ),
@@ -956,7 +1049,7 @@ class _HomeScreenState extends State<HomeScreen> {
       stream: FirebaseFirestore.instance
           .collection('ads')
           .where('status', isEqualTo: 'approved')
-          .limit(10)
+          .limit(50)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -966,7 +1059,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        final ads = snapshot.data!.docs;
+        final ads = sortAdsByPromotion(snapshot.data!.docs).take(10).toList();
 
         if (ads.isEmpty) {
           return Text(
@@ -1248,6 +1341,365 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => AdminGateScreen(isArabic: isArabic, isDark: isDark),
+      ),
+    );
+  }
+}
+
+class PaidAdsListScreen extends StatelessWidget {
+  final bool isArabic;
+  final bool isDark;
+  final String placement;
+  final String title;
+
+  const PaidAdsListScreen({
+    super.key,
+    required this.isArabic,
+    required this.isDark,
+    required this.placement,
+    required this.title,
+  });
+
+  bool get _isVip => placement == 'vip_slider';
+
+  String t(String ar, String en) => isArabic ? ar : en;
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+      child: Scaffold(
+        backgroundColor: yahalaPageBg(isDark),
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF101B28) : yaHalaGreen,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
+        body: _isVip ? _vipAdsBody() : _featuredAdsBody(),
+      ),
+    );
+  }
+
+  Widget _vipAdsBody() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('homeSlides').snapshots(),
+      builder: (context, slidesSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('ads')
+              .where('status', isEqualTo: 'approved')
+              .where('adPlacement', isEqualTo: 'vip_slider')
+              .snapshots(),
+          builder: (context, adsSnapshot) {
+            if (!slidesSnapshot.hasData || !adsSnapshot.hasData) {
+              return _loading();
+            }
+
+            final items = <Map<String, dynamic>>[];
+
+            final vipAds = sortAdsByPromotion(adsSnapshot.data!.docs).take(5);
+            for (final doc in vipAds) {
+              final data = doc.data() as Map<String, dynamic>;
+              if ((data['imageUrl']?.toString() ?? '').isNotEmpty) {
+                items.add({...data, 'adId': doc.id, '_kind': 'ad'});
+              }
+            }
+
+            final adminSlides = slidesSnapshot.data!.docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data['active'] != false &&
+                  (data['imageUrl']?.toString() ?? '').isNotEmpty;
+            }).toList();
+
+            adminSlides.sort((a, b) {
+              final aData = a.data() as Map<String, dynamic>;
+              final bData = b.data() as Map<String, dynamic>;
+              final aSort = aData['sort'];
+              final bSort = bData['sort'];
+              return (aSort is int ? aSort : 0).compareTo(
+                bSort is int ? bSort : 0,
+              );
+            });
+
+            for (final doc in adminSlides) {
+              items.add({
+                ...(doc.data() as Map<String, dynamic>),
+                '_kind': 'slide',
+              });
+            }
+
+            return _adsGrid(context, items);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _featuredAdsBody() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('ads')
+          .where('status', isEqualTo: 'approved')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return _loading();
+        }
+
+        final featured = sortPaidAdsByPromotion(
+          snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final adPlacement = data['adPlacement']?.toString() ?? '';
+            return adPlacement == featuredHomeAdPlacement ||
+                data['paidAdType'] == 'featured' ||
+                isFeaturedAd(data);
+          }),
+        ).take(10);
+
+        final items = featured.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {...data, 'adId': doc.id, '_kind': 'ad'};
+        }).toList();
+
+        return _adsGrid(context, items);
+      },
+    );
+  }
+
+  Widget _loading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation(yaHalaGreen),
+      ),
+    );
+  }
+
+  Widget _adsGrid(BuildContext context, List<Map<String, dynamic>> items) {
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _isVip
+                ? t('لا يوجد إعلانات VIP حالياً', 'No VIP ads right now')
+                : t(
+                    'لا يوجد إعلانات مميزة حالياً',
+                    'No featured ads right now',
+                  ),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: yahalaMutedText(isDark),
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 760;
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(18),
+          itemCount: items.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isWide ? 3 : 1,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            childAspectRatio: isWide ? 1.1 : 1.55,
+          ),
+          itemBuilder: (context, index) {
+            return _paidAdCard(context, items[index]);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _paidAdCard(BuildContext context, Map<String, dynamic> data) {
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+    final adId = data['adId']?.toString() ?? '';
+    final rawTitle = data['title']?.toString() ?? '';
+    final rawPrice = data['price']?.toString() ?? '';
+    final city = data['city']?.toString() ?? '';
+    final displayTitle = rawTitle.isEmpty
+        ? (_isVip ? t('إعلان VIP', 'VIP ad') : t('إعلان مميز', 'Featured ad'))
+        : rawTitle;
+    final subtitle = rawPrice.isNotEmpty ? formatMoney(rawPrice) : city;
+
+    return InkWell(
+      onTap: () {
+        if (adId.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AdDetailsScreen(
+                isArabic: isArabic,
+                isDark: isDark,
+                data: data,
+                adId: adId,
+              ),
+            ),
+          );
+          return;
+        }
+
+        if (imageUrl.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _SlideImageViewer(
+                imageUrl: imageUrl,
+                isArabic: isArabic,
+                isDark: isDark,
+              ),
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: isDark ? cardColor : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: imageUrl.isEmpty
+                        ? ColoredBox(
+                            color: yaHalaGold.withValues(alpha: 0.12),
+                            child: const Icon(
+                              Icons.campaign,
+                              color: yaHalaGold,
+                              size: 46,
+                            ),
+                          )
+                        : Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => ColoredBox(
+                              color: yaHalaGold.withValues(alpha: 0.12),
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.35),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    top: 12,
+                    start: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isVip ? yaHalaGold : yaHalaGreen,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(
+                        _isVip ? 'VIP' : t('مميز', 'Featured'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (imageUrl.isNotEmpty)
+                    PositionedDirectional(
+                      end: 12,
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.42),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.open_in_full,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: yahalaText(isDark),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: yaHalaGold,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

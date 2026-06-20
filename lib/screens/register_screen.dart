@@ -5,6 +5,7 @@ import '../constants.dart';
 import 'home_screen.dart';
 import '../services/app_settings.dart';
 import '../services/notification_service.dart';
+import 'legal_screen.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -31,6 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final passwordController = TextEditingController();
 
   bool isLoading = false;
+  bool acceptedLegal = false;
 
   String t(String ar, String en) => widget.isArabic ? ar : en;
 
@@ -54,6 +56,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    if (!acceptedLegal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t(
+              'لازم توافق على الشروط وسياسة الخصوصية',
+              'Please accept the Terms and Privacy Policy',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
 
     try {
@@ -66,6 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await userCredential.user?.updateDisplayName(nameController.text.trim());
       await userCredential.user?.sendEmailVerification();
       await AppSettings.save(isArabic: widget.isArabic, isDark: widget.isDark);
+      await AppSettings.saveLegalAccepted();
       await NotificationService.saveFcmToken();
       await FirebaseFirestore.instance
           .collection('users')
@@ -76,6 +93,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             'emailVerified': false,
             'phone': '',
             'authProvider': 'email',
+            'acceptedTerms': true,
+            'acceptedPrivacy': true,
+            'legalVersion': AppSettings.legalVersion,
+            'acceptedLegalAt': FieldValue.serverTimestamp(),
             'createdAt': FieldValue.serverTimestamp(),
           });
 
@@ -190,6 +211,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 obscure: true,
               ),
               const SizedBox(height: 24),
+              _legalConsentBox(),
+              const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -216,6 +239,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _legalConsentBox() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: CheckboxListTile(
+        value: acceptedLegal,
+        activeColor: yaHalaGreen,
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: widget.isArabic
+            ? ListTileControlAffinity.leading
+            : ListTileControlAffinity.trailing,
+        onChanged: (value) {
+          setState(() => acceptedLegal = value ?? false);
+        },
+        title: Text(
+          t(
+            'أوافق على شروط الاستخدام وسياسة الخصوصية',
+            'I agree to the Terms of Use and Privacy Policy',
+          ),
+          style: TextStyle(
+            color: widget.isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        subtitle: TextButton(
+          onPressed: _openLegalScreen,
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            alignment: widget.isArabic
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+          ),
+          child: Text(t('قراءة الشروط والخصوصية', 'Read terms and privacy')),
+        ),
+      ),
+    );
+  }
+
+  void _openLegalScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            LegalScreen(isArabic: widget.isArabic, isDark: widget.isDark),
       ),
     );
   }

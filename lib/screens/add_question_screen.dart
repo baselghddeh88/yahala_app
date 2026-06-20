@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -23,12 +26,11 @@ class AddQuestionScreen extends StatefulWidget {
 
 class _AddQuestionScreenState extends State<AddQuestionScreen> {
   final titleController = TextEditingController();
-  final detailsController = TextEditingController();
   final phoneController = TextEditingController();
-  bool anonymous = true;
+  bool anonymous = false;
   bool commentsEnabled = true;
-  bool allowCall = false;
-  bool allowSms = false;
+  bool allowCall = true;
+  bool allowSms = true;
   bool allowInAppMessage = true;
   bool isLoading = false;
 
@@ -37,19 +39,18 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
   @override
   void dispose() {
     titleController.dispose();
-    detailsController.dispose();
     phoneController.dispose();
     super.dispose();
   }
 
   Future<void> publishQuestion() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final title = titleController.text.trim();
-    final details = detailsController.text.trim();
-    final phone = phoneController.text.trim();
+    final phone = cleanPhoneInput(phoneController.text);
     final needsPhone = allowCall || allowSms;
 
     if (title.isEmpty ||
-        details.isEmpty ||
         (needsPhone && phone.isEmpty) ||
         (!allowCall && !allowSms && !allowInAppMessage)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -62,7 +63,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
                   )
                 : needsPhone && phone.isEmpty
                 ? t('اكتب رقم الهاتف', 'Add a phone number')
-                : t('اكتب السؤال والتفاصيل', 'Add a question and details'),
+                : t('اكتب السؤال', 'Write the question'),
           ),
         ),
       );
@@ -76,7 +77,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
 
       await FirebaseFirestore.instance.collection('ads').add({
         'title': title,
-        'description': details,
+        'description': '',
         'phone': phone,
         'category': 'سؤال',
         'status': 'approved',
@@ -138,11 +139,20 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
           padding: const EdgeInsets.all(18),
           child: Column(
             children: [
-              _input(t('السؤال', 'Question'), titleController),
-              _input(t('التفاصيل', 'Details'), detailsController, lines: 5),
+              _input(
+                t('اكتب سؤالك', 'Write your question'),
+                titleController,
+                lines: 6,
+              ),
               _contactOptions(),
               if (allowCall || allowSms)
-                _input(t('رقم الهاتف', 'Phone Number'), phoneController),
+                _input(
+                  t('رقم الهاتف', 'Phone Number'),
+                  phoneController,
+                  inputFormatters: const [PhoneNumberInputFormatter()],
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
+                ),
               SwitchListTile(
                 value: anonymous,
                 activeThumbColor: yaHalaGold,
@@ -217,12 +227,18 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
     String hint,
     TextEditingController controller, {
     int lines = 1,
+    List<TextInputFormatter>? inputFormatters,
+    TextDirection? textDirection,
+    TextAlign? textAlign,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         maxLines: lines,
+        inputFormatters: inputFormatters,
+        textDirection: textDirection,
+        textAlign: textAlign ?? TextAlign.start,
         style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
         keyboardType: hint.contains('الهاتف') || hint.contains('Phone')
             ? TextInputType.phone

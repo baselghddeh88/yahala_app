@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'add_question_screen.dart';
 import 'question_details_screen.dart';
+import '../utils/ad_promotion.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -100,7 +101,7 @@ class CommunityScreen extends StatelessWidget {
                   );
                 }
 
-                final questions = snapshot.data!.docs;
+                final questions = sortAdsByPromotion(snapshot.data!.docs);
 
                 if (questions.isEmpty) {
                   return Text(

@@ -7,6 +7,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import 'add_post_screen.dart';
 import 'auth_choice_screen.dart';
+import '../services/ad_actions.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -90,7 +92,6 @@ class _CouponsScreenState extends State<CouponsScreen> {
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('ads')
-                  .where('category', isEqualTo: 'كوبون')
                   .where('status', isEqualTo: 'approved')
                   .snapshots(),
               builder: (context, snapshot) {
@@ -112,7 +113,13 @@ class _CouponsScreenState extends State<CouponsScreen> {
                   );
                 }
 
-                final coupons = snapshot.data?.docs ?? [];
+                final coupons = sortAdsByPromotion(
+                  (snapshot.data?.docs ?? []).where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['category'] == 'كوبون' ||
+                        data['hasCoupon'] == true;
+                  }),
+                );
 
                 if (coupons.isEmpty) {
                   return Text(
@@ -382,19 +389,29 @@ class _CouponsScreenState extends State<CouponsScreen> {
   }
 
   Widget _meta(IconData icon, String text) {
+    final textDirection = containsLatinOrDigits(text)
+        ? TextDirection.ltr
+        : widget.isArabic
+        ? TextDirection.rtl
+        : TextDirection.ltr;
+
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 260),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        textDirection: textDirection,
         children: [
           Icon(icon, color: Colors.grey, size: 16),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            child: Directionality(
+              textDirection: textDirection,
+              child: Text(
+                isolateLeftToRight(text),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ),
           ),
         ],
@@ -403,6 +420,7 @@ class _CouponsScreenState extends State<CouponsScreen> {
   }
 
   Future<void> _claimCoupon(String couponId, Map<String, dynamic> data) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -450,6 +468,7 @@ class _CouponsScreenState extends State<CouponsScreen> {
       });
 
       if (!mounted) return;
+      FocusScope.of(context).unfocus();
       _snack(t('تم إصدار الكوبون', 'Coupon issued'));
       Navigator.push(
         context,
@@ -552,6 +571,8 @@ class CouponCodeScreen extends StatelessWidget {
         couponData['address']?.toString() ??
         couponData['city']?.toString() ??
         '';
+    final city = couponData['city']?.toString() ?? '';
+    final zipCode = couponData['zipCode']?.toString() ?? '';
     final offer = _offerLabel(couponData);
     final endDate = _dateFrom(couponData['couponEndsAt']);
     final used = status == 'used';
@@ -658,13 +679,60 @@ class CouponCodeScreen extends StatelessWidget {
                     ),
                   ],
                   if (address.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      address,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF9CA3AF),
-                        fontSize: 14,
+                    const SizedBox(height: 12),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => AdActions.openMap(
+                        context,
+                        address,
+                        city: city,
+                        zipCode: zipCode,
+                        isArabic: isArabic,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: yaHalaGreen.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          textDirection: containsLatinOrDigits(address)
+                              ? TextDirection.ltr
+                              : isArabic
+                              ? TextDirection.rtl
+                              : TextDirection.ltr,
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              color: yaHalaGreen,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Directionality(
+                                textDirection: containsLatinOrDigits(address)
+                                    ? TextDirection.ltr
+                                    : isArabic
+                                    ? TextDirection.rtl
+                                    : TextDirection.ltr,
+                                child: Text(
+                                  isolateLeftToRight(address),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: yaHalaGreen,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

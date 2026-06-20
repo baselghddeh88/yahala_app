@@ -9,6 +9,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../constants.dart';
 import 'home_screen.dart';
+import 'legal_screen.dart';
 import '../services/app_settings.dart';
 import '../services/notification_service.dart';
 
@@ -149,6 +150,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> signInWithGoogle() async {
+    if (!await _ensureLegalAccepted()) return;
+
     setState(() => isLoading = true);
 
     try {
@@ -169,8 +172,27 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+
+      final user = userCredential.user;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          if ((user.displayName ?? '').isNotEmpty) 'name': user.displayName,
+          if ((user.email ?? '').isNotEmpty) 'email': user.email,
+          'emailVerified': user.emailVerified,
+          'authProvider': 'google',
+          'acceptedTerms': true,
+          'acceptedPrivacy': true,
+          'legalVersion': AppSettings.legalVersion,
+          'acceptedLegalAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
       await AppSettings.save(isArabic: widget.isArabic, isDark: widget.isDark);
+      await AppSettings.saveLegalAccepted();
       NotificationService.saveFcmTokenInBackground();
 
       if (!mounted) return;
@@ -189,6 +211,8 @@ class _LoginScreenState extends State<LoginScreen> {
         NotificationService.openPendingAdIfAny();
       });
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(t('فشل الدخول عبر Google', 'Google sign-in failed')),
@@ -201,6 +225,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> signInWithApple() async {
+    if (!await _ensureLegalAccepted()) return;
+
     setState(() => isLoading = true);
 
     try {
@@ -269,11 +295,16 @@ class _LoginScreenState extends State<LoginScreen> {
             'email': user.email ?? appleCredential.email,
           'emailVerified': user.emailVerified,
           'authProvider': 'apple',
+          'acceptedTerms': true,
+          'acceptedPrivacy': true,
+          'legalVersion': AppSettings.legalVersion,
+          'acceptedLegalAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
 
       await AppSettings.save(isArabic: widget.isArabic, isDark: widget.isDark);
+      await AppSettings.saveLegalAccepted();
       NotificationService.saveFcmTokenInBackground();
 
       if (!mounted) return;
@@ -326,6 +357,67 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (mounted) setState(() => isLoading = false);
+  }
+
+  Future<bool> _ensureLegalAccepted() async {
+    if (await AppSettings.hasAcceptedLegal()) return true;
+
+    if (!mounted) return false;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Directionality(
+          textDirection: widget.isArabic
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          child: AlertDialog(
+            title: Text(t('الشروط والخصوصية', 'Terms and Privacy')),
+            content: SingleChildScrollView(
+              child: Text(
+                t(
+                  'قبل المتابعة، لازم توافق على شروط الاستخدام وسياسة الخصوصية. نستخدم بيانات الحساب والإعلانات والمحادثات والإشعارات لتشغيل التطبيق وتحسين الخدمة، والإعلانات قد تخضع للمراجعة قبل النشر.',
+                  'Before continuing, please accept the Terms of Use and Privacy Policy. We use account, ads, chats, and notification data to operate and improve the app, and ads may be reviewed before publishing.',
+                ),
+                style: const TextStyle(height: 1.45),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    dialogContext,
+                    MaterialPageRoute(
+                      builder: (_) => LegalScreen(
+                        isArabic: widget.isArabic,
+                        isDark: widget.isDark,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(t('قراءة الشروط', 'Read terms')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(t('إلغاء', 'Cancel')),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(t('أوافق', 'I agree')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (accepted == true) {
+      await AppSettings.saveLegalAccepted();
+      return true;
+    }
+
+    return false;
   }
 
   void _showAppleError(String message) {

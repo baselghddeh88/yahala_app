@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/ad_details_screen.dart';
+import '../utils/ad_promotion.dart';
 
 const Color _green = Color(0xFF1a6b3c);
 const Color _gold = Color(0xFFc9952a);
@@ -42,12 +43,9 @@ class PaidCategoryAds extends StatelessWidget {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
-        final featured = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['isFeatured'] == true ||
-              data['adPlacement'] == 'vip_slider' ||
-              data['adPlacement'] == 'featured';
-        }).toList();
+        final featured = sortPaidAdsByPromotion(
+          snapshot.data!.docs,
+        ).take(15).toList();
 
         if (featured.isEmpty) return const SizedBox.shrink();
 
@@ -95,7 +93,7 @@ class PaidCategoryAds extends StatelessWidget {
     final title = data['title']?.toString() ?? '';
     final city = data['city']?.toString() ?? data['address']?.toString() ?? '';
     final imageUrl = data['imageUrl']?.toString() ?? '';
-    final vip = data['adPlacement'] == 'vip_slider';
+    final vip = isVipAd(data);
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),

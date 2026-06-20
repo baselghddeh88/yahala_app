@@ -73,6 +73,8 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
   }
 
   Future<void> addComment() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final commentsEnabled = widget.data['commentsEnabled'] != false;
     if (!commentsEnabled) {
       _showMessage(t('التعليقات مغلقة لهذا السؤال', 'Comments are closed'));
@@ -333,9 +335,12 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
     required bool allowSms,
     required bool allowInAppMessage,
   }) {
+    final showCall = allowCall && phone.trim().isNotEmpty;
+    final showSms = allowSms && phone.trim().isNotEmpty;
+
     return Row(
       children: [
-        if (allowCall)
+        if (showCall)
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -344,13 +349,11 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: phone.isEmpty
-                  ? null
-                  : () => AdActions.callPhone(
-                      context,
-                      phone,
-                      isArabic: widget.isArabic,
-                    ),
+              onPressed: () => AdActions.callPhone(
+                context,
+                phone,
+                isArabic: widget.isArabic,
+              ),
               icon: const Icon(Icons.phone, color: Colors.white),
               label: Text(
                 t('اتصال', 'Call'),
@@ -358,9 +361,9 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
               ),
             ),
           ),
-        if (allowCall && (allowSms || allowInAppMessage))
+        if (showCall && (showSms || allowInAppMessage))
           const SizedBox(width: 8),
-        if (allowSms)
+        if (showSms)
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -369,13 +372,8 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: phone.isEmpty
-                  ? null
-                  : () => AdActions.sendSms(
-                      context,
-                      phone,
-                      isArabic: widget.isArabic,
-                    ),
+              onPressed: () =>
+                  AdActions.sendSms(context, phone, isArabic: widget.isArabic),
               icon: const Icon(Icons.sms, color: Colors.white),
               label: Text(
                 t('رسالة', 'SMS'),
@@ -383,7 +381,7 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
               ),
             ),
           ),
-        if (allowSms && allowInAppMessage) const SizedBox(width: 8),
+        if (showSms && allowInAppMessage) const SizedBox(width: 8),
         if (allowInAppMessage)
           Expanded(
             child: ElevatedButton.icon(

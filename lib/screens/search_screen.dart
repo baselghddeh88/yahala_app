@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'ad_details_screen.dart';
+import '../utils/ad_promotion.dart';
 import '../widgets/city_picker_field.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -163,10 +164,12 @@ class _SearchScreenState extends State<SearchScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final docs = snapshot.data!.docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return matchesFilters(data);
-                  }).toList();
+                  final docs = sortAdsByPromotion(
+                    snapshot.data!.docs.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return matchesFilters(data);
+                    }),
+                  );
 
                   if (query.isEmpty &&
                       selectedCategory.isEmpty &&

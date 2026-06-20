@@ -5,6 +5,7 @@ import '../constants.dart';
 import '../services/app_settings.dart';
 import '../services/notification_service.dart';
 import 'home_screen.dart';
+import 'legal_screen.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
 
@@ -182,6 +183,24 @@ class AuthChoiceScreen extends StatelessWidget {
                       color: isDark ? Colors.white : yahalaGreen,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            LegalScreen(isArabic: isArabic, isDark: isDark),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    t('الشروط والخصوصية', 'Terms & Privacy'),
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : yahalaMutedText(false),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),

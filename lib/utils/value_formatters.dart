@@ -1,3 +1,14 @@
+import 'package:flutter/services.dart';
+
+bool containsLatinOrDigits(String value) {
+  return RegExp(r'[A-Za-z0-9]').hasMatch(value);
+}
+
+String isolateLeftToRight(String value) {
+  if (!containsLatinOrDigits(value)) return value;
+  return '\u200E$value\u200E';
+}
+
 String cleanMoneyInput(String value) {
   return value.trim().replaceAll(RegExp(r'[\$٪%,]'), '').trim();
 }
@@ -45,4 +56,41 @@ String formatNumberWithCommas(String value) {
 
   if (decimal.isEmpty) return buffer.toString();
   return '${buffer.toString()}.$decimal';
+}
+
+String cleanPhoneInput(String value) {
+  return value.replaceAll(RegExp(r'\D'), '');
+}
+
+String formatPhoneNumber(String value) {
+  final digits = cleanPhoneInput(value);
+  if (digits.isEmpty) return '';
+
+  final local = digits.length == 11 && digits.startsWith('1')
+      ? digits.substring(1)
+      : digits;
+
+  if (local.length <= 3) return local;
+  if (local.length <= 6) {
+    return '(${local.substring(0, 3)}) ${local.substring(3)}';
+  }
+
+  final limited = local.length > 10 ? local.substring(0, 10) : local;
+  return '(${limited.substring(0, 3)}) ${limited.substring(3, 6)}-${limited.substring(6)}';
+}
+
+class PhoneNumberInputFormatter extends TextInputFormatter {
+  const PhoneNumberInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = formatPhoneNumber(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
 }

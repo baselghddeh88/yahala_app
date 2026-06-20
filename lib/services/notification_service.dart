@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 import '../main.dart';
+import '../screens/admin_gate_screen.dart';
 import '../screens/ad_details_screen.dart';
 import '../screens/chat_thread_screen.dart';
 import '../screens/question_details_screen.dart';
@@ -176,6 +177,12 @@ class NotificationService {
   }
 
   static Future<void> _handleNotificationTap(RemoteMessage message) async {
+    if (_isAdminPendingNotification(message)) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _openAdminGate();
+      return;
+    }
+
     final chatId = _extractChatId(message);
 
     if (chatId != null) {
@@ -205,6 +212,17 @@ class NotificationService {
 
     await Future.delayed(const Duration(milliseconds: 300));
     await openPendingAdIfAny();
+  }
+
+  static void _openAdminGate() {
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => const AdminGateScreen(isArabic: true, isDark: false),
+      ),
+    );
   }
 
   static void _retryOpenPendingAd(int attempt) {
@@ -394,5 +412,9 @@ class NotificationService {
 
     return type == 'ad_approved' ||
         title.contains('يا هلا') && body.contains('الموافقة');
+  }
+
+  static bool _isAdminPendingNotification(RemoteMessage message) {
+    return message.data['type']?.toString() == 'admin_pending_ad';
   }
 }

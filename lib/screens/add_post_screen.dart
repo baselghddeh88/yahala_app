@@ -7,6 +7,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 
+import '../services/ai_description_service.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
@@ -20,6 +22,8 @@ class AddPostScreen extends StatefulWidget {
   final bool isDark;
   final String? initialCategory;
   final String? initialAdPlacement;
+  final bool publishImmediately;
+  final bool createdByAdmin;
 
   const AddPostScreen({
     super.key,
@@ -27,6 +31,8 @@ class AddPostScreen extends StatefulWidget {
     required this.isDark,
     this.initialCategory,
     this.initialAdPlacement,
+    this.publishImmediately = false,
+    this.createdByAdmin = false,
   });
 
   @override
@@ -36,6 +42,7 @@ class AddPostScreen extends StatefulWidget {
 class _AddPostScreenState extends State<AddPostScreen> {
   late String selectedCategory;
   bool isLoading = false;
+  bool isFormattingDescription = false;
 
   final List<File> selectedImages = [];
   final ImagePicker picker = ImagePicker();
@@ -52,30 +59,40 @@ class _AddPostScreenState extends State<AddPostScreen> {
   final couponTermsController = TextEditingController();
   bool allowCall = true;
   bool allowSms = true;
-  bool allowInAppMessage = false;
+  bool allowInAppMessage = true;
+  bool wantsRestaurantCoupon = false;
   String housingType = 'إيجار';
   String? couponType;
   String? adPlacement;
   DateTime? couponEndDate;
+  DateTime? eventDate;
 
   String t(String ar, String en) => widget.isArabic ? ar : en;
 
-  int get maxImages =>
-      selectedCategory == 'سكن' || selectedCategory == 'مطاعم ومحلات' ? 5 : 1;
+  int get maxImages {
+    if (isPaidAdRequest) return 1;
+    return selectedCategory == 'سكن' || selectedCategory == 'مطاعم ومحلات'
+        ? 5
+        : 1;
+  }
+
   bool get isCategoryLocked => widget.initialCategory != null;
   bool get isHousing => selectedCategory == 'سكن';
   bool get isRestaurantOrStore => selectedCategory == 'مطاعم ومحلات';
   bool get isCoupon => selectedCategory == 'كوبون';
   bool get isPaidAdRequest => adPlacement != null;
-  bool get isVipAdRequest => adPlacement == 'vip_slider';
-  bool get isFeaturedAdRequest => adPlacement == 'featured';
+  bool get isVipAdRequest => adPlacement == vipAdPlacement;
+  bool get isFeaturedAdRequest => adPlacement == featuredHomeAdPlacement;
+  bool get isCategoryTopRequest => adPlacement == categoryTopAdPlacement;
+  bool get hasCouponDetails => isCoupon || wantsRestaurantCoupon;
+  bool get isEvent => selectedCategory == 'فعاليات';
 
   @override
   void initState() {
     super.initState();
     adPlacement = widget.initialAdPlacement;
     selectedCategory =
-        widget.initialCategory ?? (isPaidAdRequest ? 'إعلان مدفوع' : 'وظيفة');
+        widget.initialCategory ?? (isPaidAdRequest ? 'مطاعم ومحلات' : 'وظيفة');
   }
 
   @override
@@ -149,18 +166,22 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   Future<void> publishPost() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final needsPhone = selectedCategory != 'سؤال' && (allowCall || allowSms);
     final couponNeedsValue =
-        isCoupon &&
+        hasCouponDetails &&
         (couponType == null || couponValueController.text.trim().isEmpty);
+    final couponNeedsAddress =
+        hasCouponDetails && addressController.text.trim().isEmpty;
 
     if (titleController.text.trim().isEmpty ||
         descriptionController.text.trim().isEmpty ||
         (selectedCategory != 'سؤال' && cityController.text.trim().isEmpty) ||
-        (selectedCategory != 'سؤال' && addressController.text.trim().isEmpty) ||
         (isPaidAdRequest && selectedImages.isEmpty) ||
         couponNeedsValue ||
-        (isCoupon && couponEndDate == null) ||
+        couponNeedsAddress ||
+        (hasCouponDetails && couponEndDate == null) ||
         (needsPhone && phoneController.text.trim().isEmpty) ||
         (selectedCategory != 'سؤال' &&
             !isPaidAdRequest &&
@@ -176,13 +197,13 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     'Choose at least one contact method',
                   )
                 : t(
-                    isCoupon
-                        ? 'اختر نوع العرض وعبّي معلومات الكوبون والمدة'
+                    hasCouponDetails
+                        ? 'اختر نوع العرض وعبّي معلومات الكوبون والعنوان والمدة'
                         : isPaidAdRequest
                         ? 'عبّي معلومات الإعلان وارفع الصورة المطلوبة'
                         : 'عبّي كل الحقول المطلوبة',
-                    isCoupon
-                        ? 'Choose offer type and fill coupon details'
+                    hasCouponDetails
+                        ? 'Choose offer type and fill coupon details, address, and duration'
                         : isPaidAdRequest
                         ? 'Fill ad details and upload the required image'
                         : 'Please fill all required fields',
@@ -211,6 +232,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
       final authorPhotoUrl =
           userData['photoUrl']?.toString() ?? user?.photoURL ?? '';
+      final paidType = _requestedPaidType();
+      final placementLabel = _requestedPlacementLabel();
+      final isAlwaysFreeCategory = isCoupon || selectedCategory == 'سؤال';
 
       await FirebaseFirestore.instance.collection('ads').add({
         'title': titleController.text.trim(),
@@ -218,21 +242,32 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'city': cityController.text.trim(),
         'address': addressController.text.trim(),
         'zipCode': zipController.text.trim(),
-        if (isCoupon) ...{'merchantName': descriptionController.text.trim()},
-        'phone': phoneController.text.trim(),
+        if (hasCouponDetails) ...{
+          'hasCoupon': true,
+          'merchantName': isCoupon
+              ? descriptionController.text.trim()
+              : titleController.text.trim(),
+        },
+        'phone': cleanPhoneInput(phoneController.text),
         'price': cleanMoneyInput(priceController.text),
         'category': selectedCategory,
-        if (isPaidAdRequest) ...{
+        if (isEvent && eventDate != null)
+          'eventDate': Timestamp.fromDate(eventDate!),
+        if (isPaidAdRequest && !isAlwaysFreeCategory) ...{
           'adPlacement': adPlacement,
-          'paidAdType': isVipAdRequest ? 'vip' : 'featured',
+          'paidAdType': paidType,
           'isPaidAdRequest': true,
           'requestedCategory': selectedCategory,
-          'requestedPlacementLabel': isVipAdRequest
-              ? 'إعلان VIP أعلى الصفحة'
-              : 'إعلان مميز',
+          'requestedPlacementLabel': placementLabel,
+          'paymentRequired': false,
+          'paymentStatus': 'free_pilot',
+          'paidLaunchMode': 'free_until_payments_enabled',
+        } else ...{
+          'paymentRequired': false,
+          'paymentStatus': 'not_required',
         },
         if (isHousing) 'housingType': housingType,
-        if (isCoupon) ...{
+        if (hasCouponDetails) ...{
           'couponType': couponType,
           'couponValue': couponType == 'percent'
               ? cleanPercentInput(couponValueController.text)
@@ -252,7 +287,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'views': 0,
         'likesCount': 0,
         'commentsCount': 0,
-        'status': 'pending',
+        'status': widget.publishImmediately ? 'approved' : 'pending',
         'isFeatured': false,
         'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : '',
         'imageUrls': imageUrls,
@@ -260,7 +295,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'userEmail': user?.email ?? '',
         'authorName': authorName,
         'authorPhotoUrl': authorPhotoUrl,
+        if (widget.createdByAdmin) 'createdByAdmin': true,
         'createdAt': FieldValue.serverTimestamp(),
+        if (widget.publishImmediately)
+          'approvedAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
@@ -283,6 +321,79 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
 
     if (mounted) setState(() => isLoading = false);
+  }
+
+  String _requestedPaidType() {
+    if (isVipAdRequest) return 'vip';
+    if (isFeaturedAdRequest) return 'featured';
+    if (isCategoryTopRequest) return 'category_top';
+    return '';
+  }
+
+  String _requestedPlacementLabel() {
+    if (isVipAdRequest) {
+      return t('إعلان VIP أعلى الصفحة', 'VIP ad at the top of the home page');
+    }
+    if (isFeaturedAdRequest) {
+      return t('إعلان مميز تحت VIP', 'Featured ad below VIP');
+    }
+    if (isCategoryTopRequest) {
+      return t('أولوية أول 10 داخل القسم', 'Top 10 priority inside category');
+    }
+    return t('إعلان عادي', 'Regular ad');
+  }
+
+  Future<void> formatDescriptionWithAi() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    if (titleController.text.trim().isEmpty &&
+        descriptionController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t(
+              'اكتب عنوان أو وصف بسيط أولاً',
+              'Write a title or a short note first',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => isFormattingDescription = true);
+
+    try {
+      final formatted = await AiDescriptionService.formatDescription(
+        title: titleController.text,
+        description: descriptionController.text,
+        category: selectedCategory,
+        isArabic: widget.isArabic,
+      );
+
+      if (!mounted) return;
+      descriptionController.text = formatted;
+      descriptionController.selection = TextSelection.collapsed(
+        offset: descriptionController.text.length,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('تمت كتابة الوصف', 'Description generated'))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t(
+              'تعذرت كتابة الوصف حالياً. تأكد من تسجيل الدخول وإعداد الذكاء الاصطناعي.',
+              'Could not generate the description now. Check login and AI setup.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => isFormattingDescription = false);
+    }
   }
 
   String priceHint() {
@@ -310,9 +421,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (selectedCategory == 'كوبون') {
       return t('سعر العرض - اختياري', 'Offer price - optional');
     }
-    if (selectedCategory == 'فعاليات') {
-      return t('التاريخ أو السعر - اختياري', 'Date or price - optional');
-    }
     return t('السعر أو التفاصيل - اختياري', 'Price or details - optional');
   }
 
@@ -320,6 +428,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
     setState(() {
       selectedCategory = value;
       selectedImages.clear();
+      if (!isEvent) eventDate = null;
+      if (!isRestaurantOrStore && !isCoupon) {
+        wantsRestaurantCoupon = false;
+        couponType = null;
+        couponValueController.clear();
+        couponLimitController.clear();
+        couponTermsController.clear();
+        couponEndDate = null;
+      }
     });
   }
 
@@ -375,6 +492,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
         backgroundColor: widget.isDark ? bgDark : Colors.white,
         appBar: AppBar(
           backgroundColor: yaHalaGreen,
+          foregroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
           centerTitle: true,
           title: Text(
@@ -391,7 +510,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!isCategoryLocked) ...[
-                _sectionTitle(t('نوع الإعلان', 'Post Type')),
+                _sectionTitle(
+                  isPaidAdRequest
+                      ? t('اختر قسم الإعلان', 'Choose ad category')
+                      : t('نوع الإعلان', 'Post Type'),
+                ),
                 const SizedBox(height: 12),
                 _typeCard(Icons.work, t('وظيفة', 'Job'), 'وظيفة'),
                 _typeCard(Icons.home, t('سكن', 'Housing'), 'سكن'),
@@ -431,6 +554,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 descriptionController,
                 lines: isCoupon ? 1 : 4,
               ),
+              if (!isCoupon) _aiDescriptionButton(),
               if (selectedCategory != 'سؤال') ...[
                 CityPickerField(
                   controller: cityController,
@@ -439,25 +563,44 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   hint: t('المدينة', 'City'),
                   margin: const EdgeInsets.only(bottom: 12),
                 ),
-                _input(t('العنوان', 'Address'), addressController),
+                _input(
+                  t('العنوان الكامل - اختياري', 'Full address - optional'),
+                  addressController,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
+                ),
                 _input(
                   t('ZIP Code - اختياري', 'ZIP Code - optional'),
                   zipController,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
                 ),
               ],
-              if (isCoupon) _couponOptions(),
+              if (isRestaurantOrStore) _restaurantCouponPrompt(),
+              if (isEvent) _eventDatePicker(),
+              if (hasCouponDetails) _couponOptions(),
               if (selectedCategory != 'سؤال') _contactOptions(),
               if (selectedCategory != 'سؤال' && (allowCall || allowSms))
-                _input(t('رقم الهاتف', 'Phone Number'), phoneController),
+                _input(
+                  t('رقم الهاتف', 'Phone Number'),
+                  phoneController,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
+                  inputFormatters: const [PhoneNumberInputFormatter()],
+                ),
               if (!isRestaurantOrStore)
                 _input(
                   priceHint(),
                   priceController,
-                  keyboardType: TextInputType.number,
-                  prefixText: '\$ ',
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                  ],
+                  keyboardType: isPaidAdRequest
+                      ? TextInputType.text
+                      : TextInputType.number,
+                  prefixText: isPaidAdRequest ? null : '\$ ',
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
+                  inputFormatters: isPaidAdRequest
+                      ? null
+                      : [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                 ),
 
               const SizedBox(height: 16),
@@ -581,6 +724,38 @@ class _AddPostScreenState extends State<AddPostScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _aiDescriptionButton() {
+    return Align(
+      alignment: widget.isArabic ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: yaHalaGreen,
+            side: const BorderSide(color: yaHalaGreen),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          onPressed: isFormattingDescription ? null : formatDescriptionWithAi,
+          icon: isFormattingDescription
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_awesome),
+          label: Text(
+            isFormattingDescription
+                ? t('جاري الكتابة...', 'Writing...')
+                : t('اكتب الوصف بالذكاء الاصطناعي', 'Write with AI'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
       ),
     );
   }
@@ -735,6 +910,71 @@ class _AddPostScreenState extends State<AddPostScreen> {
             title: t('عن طريق التطبيق', 'Through the app'),
             value: allowInAppMessage,
             onChanged: (value) => setState(() => allowInAppMessage = value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _restaurantCouponPrompt() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: yaHalaGold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.local_offer, color: yaHalaGold),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t('بدك تضيف كوبون للمحل؟', 'Add a coupon for this place?'),
+                  style: TextStyle(
+                    color: widget.isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  t(
+                    'بيظهر الإعلان كمان بقسم الكوبونات',
+                    'It will also appear in the coupons section',
+                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: wantsRestaurantCoupon,
+            activeThumbColor: yaHalaGreen,
+            onChanged: isLoading
+                ? null
+                : (value) {
+                    setState(() {
+                      wantsRestaurantCoupon = value;
+                      if (!value) {
+                        couponType = null;
+                        couponValueController.clear();
+                        couponLimitController.clear();
+                        couponTermsController.clear();
+                        couponEndDate = null;
+                      }
+                    });
+                  },
           ),
         ],
       ),
@@ -1028,6 +1268,61 @@ class _AddPostScreenState extends State<AddPostScreen> {
     return '${date.year}-$month-$day';
   }
 
+  Future<void> _pickEventDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: eventDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked == null) return;
+    setState(() => eventDate = picked);
+  }
+
+  Widget _eventDatePicker() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: isLoading ? null : _pickEventDate,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.event, color: yaHalaGreen),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                eventDate == null
+                    ? t('تاريخ الفعالية - اختياري', 'Event date - optional')
+                    : t(
+                        'تاريخ الفعالية: ${_formatDate(eventDate!)}',
+                        'Event date: ${_formatDate(eventDate!)}',
+                      ),
+                style: TextStyle(
+                  color: widget.isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (eventDate != null)
+              IconButton(
+                onPressed: isLoading
+                    ? null
+                    : () => setState(() => eventDate = null),
+                icon: const Icon(Icons.close, color: Colors.grey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _contactSwitch({
     required IconData icon,
     required String title,
@@ -1179,6 +1474,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
     TextInputType? keyboardType,
     String? prefixText,
     List<TextInputFormatter>? inputFormatters,
+    TextDirection? textDirection,
+    TextAlign? textAlign,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1186,6 +1483,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
         controller: controller,
         maxLines: lines,
         inputFormatters: inputFormatters,
+        textDirection: textDirection,
+        textAlign: textAlign ?? TextAlign.start,
         style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
         keyboardType:
             keyboardType ??

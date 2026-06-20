@@ -29,6 +29,12 @@ service cloud.firestore {
       allow create: if isAdmin() ||
         (
           signedIn() &&
+          request.resource.data.category == 'سؤال' &&
+          request.resource.data.status == 'approved' &&
+          request.resource.data.userId == request.auth.uid
+        ) ||
+        (
+          signedIn() &&
           request.resource.data.status == 'pending' &&
           request.resource.data.isFeatured == false
         );
@@ -51,6 +57,23 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny([
               'isFeatured',
+              'priorityTier',
+              'adPlacement',
+              'paidAdType',
+              'isPaidAdRequest',
+              'requestedPlacementLabel',
+              'paymentRequired',
+              'paymentStatus',
+              'paidLaunchMode',
+              'paymentAmount',
+              'paidAmount',
+              'paidAt',
+              'paymentConfirmedAt',
+              'placementDurationDays',
+              'approvedAsPlacement',
+              'activeFrom',
+              'activeUntil',
+              'adminNotes',
               'approvedAt',
               'rejectedAt',
               'rejectionReason'
@@ -141,6 +164,12 @@ service cloud.firestore {
       match /favorites/{favoriteId} {
         allow read, create, update, delete: if ownsUserDoc(userId);
       }
+    }
+
+    match /deletionRequests/{userId} {
+      allow read: if ownsUserDoc(userId) || isAdmin();
+      allow create, update: if ownsUserDoc(userId);
+      allow delete: if isAdmin();
     }
 
     match /favorites/{favoriteId} {

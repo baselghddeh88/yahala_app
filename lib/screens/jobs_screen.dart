@@ -5,6 +5,7 @@ import 'details_screen.dart';
 import 'add_post_screen.dart';
 import 'search_screen.dart';
 import '../services/ad_actions.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 import '../widgets/favorite_button.dart';
@@ -167,13 +168,12 @@ class _JobsScreenState extends State<JobsScreen> {
                     );
                   }
 
-                  final jobs = (snapshot.data?.docs ?? []).where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data['isFeatured'] != true &&
-                        data['adPlacement'] != 'vip_slider' &&
-                        data['adPlacement'] != 'featured' &&
-                        _matchesFilters(data);
-                  }).toList();
+                  final jobs = sortAdsByPromotion(
+                    (snapshot.data?.docs ?? []).where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return _matchesFilters(data);
+                    }),
+                  );
 
                   if (jobs.isEmpty) {
                     return Text(
@@ -393,6 +393,8 @@ Widget _jobCard({
   final allowCall = hasContactOptions ? data['allowCall'] == true : true;
   final allowSms = hasContactOptions ? data['allowSms'] == true : true;
   final allowInAppMessage = data['allowInAppMessage'] == true;
+  final showCall = allowCall && phone.trim().isNotEmpty;
+  final showSms = allowSms && phone.trim().isNotEmpty;
 
   return InkWell(
     borderRadius: BorderRadius.circular(22),
@@ -521,7 +523,7 @@ Widget _jobCard({
 
           Row(
             children: [
-              if (allowCall)
+              if (showCall)
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
@@ -530,13 +532,8 @@ Widget _jobCard({
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: phone.isEmpty
-                        ? null
-                        : () => AdActions.callPhone(
-                            context,
-                            phone,
-                            isArabic: isArabic,
-                          ),
+                    onPressed: () =>
+                        AdActions.callPhone(context, phone, isArabic: isArabic),
                     icon: const Icon(Icons.phone, color: Colors.white),
                     label: Text(
                       isArabic ? 'اتصال' : 'Call',
@@ -545,10 +542,10 @@ Widget _jobCard({
                   ),
                 ),
 
-              if (allowCall && (allowSms || allowInAppMessage))
+              if (showCall && (showSms || allowInAppMessage))
                 const SizedBox(width: 8),
 
-              if (allowSms)
+              if (showSms)
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
@@ -557,13 +554,8 @@ Widget _jobCard({
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: phone.isEmpty
-                        ? null
-                        : () => AdActions.sendSms(
-                            context,
-                            phone,
-                            isArabic: isArabic,
-                          ),
+                    onPressed: () =>
+                        AdActions.sendSms(context, phone, isArabic: isArabic),
                     icon: const Icon(Icons.sms, color: Colors.white),
                     label: Text(
                       isArabic ? 'رسالة' : 'SMS',
@@ -572,7 +564,7 @@ Widget _jobCard({
                   ),
                 ),
 
-              if (allowSms && allowInAppMessage) const SizedBox(width: 8),
+              if (showSms && allowInAppMessage) const SizedBox(width: 8),
 
               if (allowInAppMessage)
                 Expanded(

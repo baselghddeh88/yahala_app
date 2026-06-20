@@ -7,13 +7,17 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'ad_details_screen.dart';
+import 'add_post_screen.dart';
 import 'question_details_screen.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
 const Color bgDark = Color(0xFF0e1621);
 const Color cardColor = Color(0xFF1c2b3a);
+
+enum _ReviewFilter { vip, featured, categoryTop, free }
 
 class AdminScreen extends StatefulWidget {
   final bool isArabic;
@@ -34,7 +38,7 @@ class _AdminScreenState extends State<AdminScreen>
   @override
   void initState() {
     super.initState();
-    tabController = TabController(length: 9, vsync: this);
+    tabController = TabController(length: 11, vsync: this);
   }
 
   @override
@@ -51,6 +55,8 @@ class _AdminScreenState extends State<AdminScreen>
         backgroundColor: widget.isDark ? bgDark : const Color(0xFFF7F8F6),
         appBar: AppBar(
           backgroundColor: yaHalaGreen,
+          foregroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
           centerTitle: true,
           title: Text(
@@ -68,7 +74,7 @@ class _AdminScreenState extends State<AdminScreen>
             ),
             IconButton(
               tooltip: t('إضافة إعلان VIP', 'Add VIP ad'),
-              onPressed: _showAddSlidesDialog,
+              onPressed: _openVipAdForm,
               icon: const Icon(Icons.workspace_premium, color: Colors.white),
             ),
             IconButton(
@@ -90,12 +96,14 @@ class _AdminScreenState extends State<AdminScreen>
             unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(text: t('الرئيسية', 'Dashboard')),
-              Tab(text: t('مراجعة', 'Pending')),
+              Tab(text: t('طلبات VIP', 'VIP Requests')),
+              Tab(text: t('طلبات مميزة', 'Featured Requests')),
+              Tab(text: t('أولوية الأقسام', 'Category Priority')),
+              Tab(text: t('مجاني', 'Free')),
               Tab(text: t('منشور', 'Approved')),
-              Tab(text: t('مميز', 'Featured')),
               Tab(text: t('مرفوض', 'Rejected')),
               Tab(text: t('أسئلة', 'Questions')),
-              Tab(text: t('VIP', 'VIP')),
+              Tab(text: t('إدارة VIP', 'VIP Manager')),
               Tab(text: t('مستخدمين', 'Users')),
               Tab(text: t('أدمنز', 'Admins')),
             ],
@@ -105,9 +113,14 @@ class _AdminScreenState extends State<AdminScreen>
           controller: tabController,
           children: [
             _dashboard(),
-            _adsList(status: 'pending'),
+            _adsList(status: 'pending', reviewFilter: _ReviewFilter.vip),
+            _adsList(status: 'pending', reviewFilter: _ReviewFilter.featured),
+            _adsList(
+              status: 'pending',
+              reviewFilter: _ReviewFilter.categoryTop,
+            ),
+            _adsList(status: 'pending', reviewFilter: _ReviewFilter.free),
             _adsList(status: 'approved', excludeQuestions: true),
-            _adsList(featuredOnly: true),
             _adsList(status: 'rejected'),
             _adsList(category: 'سؤال'),
             _slidesManager(),
@@ -375,6 +388,7 @@ class _AdminScreenState extends State<AdminScreen>
     String? category,
     bool featuredOnly = false,
     bool excludeQuestions = false,
+    _ReviewFilter? reviewFilter,
   }) {
     Query query = FirebaseFirestore.instance.collection('ads');
 
@@ -394,6 +408,13 @@ class _AdminScreenState extends State<AdminScreen>
           docs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return data['category'] != 'سؤال';
+          }).toList();
+        }
+
+        if (reviewFilter != null) {
+          docs = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _matchesReviewFilter(data, reviewFilter);
           }).toList();
         }
 
@@ -423,6 +444,30 @@ class _AdminScreenState extends State<AdminScreen>
         );
       },
     );
+  }
+
+  bool _matchesReviewFilter(Map<String, dynamic> data, _ReviewFilter filter) {
+    final category = data['category']?.toString() ?? '';
+    if (category == 'سؤال') return false;
+
+    final placement = data['adPlacement']?.toString() ?? '';
+    final paidType = data['paidAdType']?.toString().toLowerCase() ?? '';
+    final tier = adPromotionTier(data);
+
+    return switch (filter) {
+      _ReviewFilter.vip =>
+        placement == vipAdPlacement || paidType == 'vip' || tier >= 3,
+      _ReviewFilter.featured =>
+        placement == featuredHomeAdPlacement ||
+            paidType == 'featured' ||
+            paidType == 'home_featured' ||
+            tier == 2,
+      _ReviewFilter.categoryTop =>
+        placement == categoryTopAdPlacement ||
+            paidType == 'category_top' ||
+            tier == 1,
+      _ReviewFilter.free => !isPaidPlacementAd(data),
+    };
   }
 
   Widget _adminsList() {
@@ -893,6 +938,10 @@ class _AdminScreenState extends State<AdminScreen>
     final isFeatured = data['isFeatured'] == true;
     final userEmail = data['userEmail']?.toString() ?? '';
     final views = data['views']?.toString() ?? '0';
+    final placement = data['adPlacement']?.toString() ?? '';
+    final paidLabel = _paidReviewLabel(data);
+    final paymentStatus = data['paymentStatus']?.toString() ?? '';
+    final activeUntil = data['activeUntil'];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -940,6 +989,23 @@ class _AdminScreenState extends State<AdminScreen>
               if (city.isNotEmpty) _meta(Icons.location_on, city),
               if (phone.isNotEmpty) _meta(Icons.phone, phone),
               if (userEmail.isNotEmpty) _meta(Icons.email, userEmail),
+              _meta(
+                placement == vipAdPlacement
+                    ? Icons.workspace_premium
+                    : placement == featuredHomeAdPlacement
+                    ? Icons.star
+                    : placement == categoryTopAdPlacement
+                    ? Icons.trending_up
+                    : Icons.money_off,
+                paidLabel,
+              ),
+              if (paymentStatus.isNotEmpty)
+                _meta(Icons.payments, _paymentStatusLabel(paymentStatus)),
+              if (activeUntil is Timestamp)
+                _meta(
+                  Icons.event_available,
+                  '${t('ينتهي', 'Ends')}: ${_formatDate(activeUntil.toDate())}',
+                ),
               _meta(Icons.visibility, views),
               if (isFeatured) _meta(Icons.star, t('مميز', 'Featured')),
             ],
@@ -962,32 +1028,20 @@ class _AdminScreenState extends State<AdminScreen>
                 Colors.blueGrey,
                 () => _openDetails(id, data),
               ),
-              _actionButton(
-                Icons.check,
-                t('موافقة', 'Approve'),
-                yaHalaGreen,
-                () => _approve(id, featured: false),
-              ),
-              _actionButton(
-                Icons.workspace_premium,
-                t('موافقة + مميز', 'Approve + feature'),
-                yaHalaGold,
-                () => _approve(id, featured: true),
-              ),
-              _actionButton(
-                isFeatured ? Icons.star_border : Icons.star,
-                isFeatured
-                    ? t('إلغاء التمييز', 'Unfeature')
-                    : t('تمييز', 'Feature'),
-                yaHalaGold,
-                () => _toggleFeatured(id, isFeatured),
-              ),
-              _actionButton(
-                Icons.close,
-                t('رفض', 'Reject'),
-                Colors.deepOrange,
-                () => _showRejectDialog(id),
-              ),
+              if (status == 'pending')
+                _actionButton(
+                  Icons.check,
+                  _approveLabel(data),
+                  yaHalaGreen,
+                  () => _approve(id),
+                ),
+              if (status == 'pending')
+                _actionButton(
+                  Icons.close,
+                  t('رفض', 'Reject'),
+                  Colors.deepOrange,
+                  () => _showRejectDialog(id),
+                ),
               _actionButton(
                 Icons.delete,
                 t('حذف', 'Delete'),
@@ -1069,6 +1123,54 @@ class _AdminScreenState extends State<AdminScreen>
     );
   }
 
+  String _paidReviewLabel(Map<String, dynamic> data) {
+    final placement = data['adPlacement']?.toString() ?? '';
+    final tier = adPromotionTier(data);
+    if (placement == vipAdPlacement || tier >= 3) {
+      return t('VIP مدفوع', 'Paid VIP');
+    }
+    if (placement == featuredHomeAdPlacement || tier == 2) {
+      return t('مميز تحت VIP', 'Featured under VIP');
+    }
+    if (placement == categoryTopAdPlacement || tier == 1) {
+      return t('أولوية أول 10 بالقسم', 'Top 10 category priority');
+    }
+    if (data['isPaidAdRequest'] == true) return t('طلب مدفوع', 'Paid request');
+    return t('مجاني', 'Free');
+  }
+
+  String _paymentStatusLabel(String status) {
+    return switch (status) {
+      'free_pilot' => t('مجاني حاليا', 'Free pilot'),
+      'not_required' => t('لا يحتاج دفع', 'No payment needed'),
+      'pending' => t('بانتظار الدفع', 'Payment pending'),
+      'paid' => t('مدفوع', 'Paid'),
+      _ => status,
+    };
+  }
+
+  int _defaultDurationDays(int priorityTier) {
+    if (priorityTier >= 3) return 30;
+    if (priorityTier == 2) return 30;
+    if (priorityTier == 1) return 30;
+    return 0;
+  }
+
+  String _placementForTier(int priorityTier) {
+    if (priorityTier >= 3) return vipAdPlacement;
+    if (priorityTier == 2) return featuredHomeAdPlacement;
+    if (priorityTier == 1) return categoryTopAdPlacement;
+    return '';
+  }
+
+  String _approveLabel(Map<String, dynamic> data) {
+    final tier = adPromotionTier(data);
+    if (tier >= 3) return t('موافقة VIP', 'Approve VIP');
+    if (tier == 2) return t('موافقة مميز', 'Approve featured');
+    if (tier == 1) return t('موافقة أولوية القسم', 'Approve category priority');
+    return t('موافقة', 'Approve');
+  }
+
   Widget _actionButton(
     IconData icon,
     String label,
@@ -1128,39 +1230,42 @@ class _AdminScreenState extends State<AdminScreen>
     );
   }
 
-  Future<void> _approve(String id, {required bool featured}) async {
+  Future<void> _approve(String id) async {
     final doc = await FirebaseFirestore.instance
         .collection('ads')
         .doc(id)
         .get();
     final data = doc.data() ?? {};
-    final placement = data['adPlacement']?.toString() ?? '';
-    final shouldFeature = featured || placement == 'featured';
+    final priorityTier = adPromotionTier(data);
+    final shouldFeature = priorityTier > 0;
+    final durationDays = _defaultDurationDays(priorityTier);
+    final approvedPlacement = _placementForTier(priorityTier);
 
     await FirebaseFirestore.instance.collection('ads').doc(id).update({
       'status': 'approved',
       'isFeatured': shouldFeature,
+      'priorityTier': priorityTier,
+      'paymentRequired': false,
+      'paymentStatus': priorityTier > 0 ? 'free_pilot' : 'not_required',
+      'paidLaunchMode': priorityTier > 0
+          ? 'free_until_payments_enabled'
+          : 'not_required',
+      'placementDurationDays': durationDays,
+      if (approvedPlacement.isNotEmpty)
+        'approvedAsPlacement': approvedPlacement,
+      if (durationDays > 0)
+        'activeUntil': Timestamp.fromDate(
+          DateTime.now().add(Duration(days: durationDays)),
+        )
+      else
+        'activeUntil': FieldValue.delete(),
+      'activeFrom': FieldValue.serverTimestamp(),
       'rejectionReason': FieldValue.delete(),
       'approvedAt': FieldValue.serverTimestamp(),
     });
 
     if (!mounted) return;
     _snack(t('تمت الموافقة', 'Approved'));
-  }
-
-  Future<void> _toggleFeatured(String id, bool isFeatured) async {
-    await FirebaseFirestore.instance.collection('ads').doc(id).update({
-      'isFeatured': !isFeatured,
-      if (!isFeatured) 'status': 'approved',
-      if (!isFeatured) 'approvedAt': FieldValue.serverTimestamp(),
-    });
-
-    if (!mounted) return;
-    _snack(
-      isFeatured
-          ? t('تم إلغاء التمييز', 'Removed from featured')
-          : t('تم تمييز المنشور', 'Marked as featured'),
-    );
   }
 
   Future<void> _showRejectDialog(String id) async {
@@ -1175,7 +1280,10 @@ class _AdminScreenState extends State<AdminScreen>
           minLines: 2,
           maxLines: 4,
           decoration: InputDecoration(
-            hintText: t('سبب الرفض - اختياري', 'Reason - optional'),
+            hintText: t(
+              'اكتب سبب الرفض بالتفصيل',
+              'Write the rejection reason in detail',
+            ),
           ),
         ),
         actions: [
@@ -1197,6 +1305,10 @@ class _AdminScreenState extends State<AdminScreen>
 
     controller.dispose();
     if (reason == null) return;
+    if (reason.trim().isEmpty) {
+      _snack(t('اكتب سبب الرفض أولاً', 'Add a rejection reason first'));
+      return;
+    }
 
     await FirebaseFirestore.instance.collection('ads').doc(id).update({
       'status': 'rejected',
@@ -1489,6 +1601,21 @@ class _AdminScreenState extends State<AdminScreen>
     _snack(t('تمت إضافة إعلانات VIP', 'VIP ads added'));
   }
 
+  Future<void> _openVipAdForm() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddPostScreen(
+          isArabic: widget.isArabic,
+          isDark: widget.isDark,
+          initialAdPlacement: 'vip_slider',
+          publishImmediately: true,
+          createdByAdmin: true,
+        ),
+      ),
+    );
+  }
+
   Future<void> _uploadHomeSlides(List<XFile> images) async {
     final existing = await FirebaseFirestore.instance
         .collection('homeSlides')
@@ -1544,8 +1671,14 @@ class _AdminScreenState extends State<AdminScreen>
           padding: const EdgeInsets.all(18),
           children: [
             _quickAction(
+              Icons.workspace_premium,
+              t('إضافة إعلان VIP كامل', 'Add full VIP ad'),
+              _openVipAdForm,
+            ),
+            const SizedBox(height: 10),
+            _quickAction(
               Icons.add_photo_alternate,
-              t('إضافة إعلان VIP', 'Add VIP ad'),
+              t('إضافة صور سلايدر فقط', 'Add slider images only'),
               _showAddSlidesDialog,
             ),
             const SizedBox(height: 14),
@@ -1644,7 +1777,7 @@ class _AdminScreenState extends State<AdminScreen>
     final priceController = TextEditingController();
     var category = 'خدمة';
     var status = 'approved';
-    var isFeatured = false;
+    var paidPlacement = '';
     var allowCall = true;
     var allowSms = true;
     var allowInAppMessage = true;
@@ -1691,7 +1824,12 @@ class _AdminScreenState extends State<AdminScreen>
                       ],
                       onChanged: (value) {
                         if (value == null) return;
-                        setDialogState(() => category = value);
+                        setDialogState(() {
+                          category = value;
+                          if (category == 'كوبون' || category == 'سؤال') {
+                            paidPlacement = '';
+                          }
+                        });
                       },
                     ),
                     const SizedBox(height: 10),
@@ -1772,13 +1910,37 @@ class _AdminScreenState extends State<AdminScreen>
                       },
                       title: Text(t('رسالة داخل التطبيق', 'In-app message')),
                     ),
-                    SwitchListTile(
-                      value: isFeatured,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (value) {
-                        setDialogState(() => isFeatured = value);
-                      },
-                      title: Text(t('إعلان مميز', 'Featured ad')),
+                    DropdownButtonFormField<String>(
+                      initialValue: paidPlacement,
+                      decoration: InputDecoration(
+                        labelText: t('نوع الظهور', 'Placement type'),
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: '',
+                          child: Text(t('مجاني / عادي', 'Free / normal')),
+                        ),
+                        DropdownMenuItem(
+                          value: vipAdPlacement,
+                          child: Text(t('VIP أعلى الصفحة', 'Home VIP')),
+                        ),
+                        DropdownMenuItem(
+                          value: featuredHomeAdPlacement,
+                          child: Text(t('مميز تحت VIP', 'Featured under VIP')),
+                        ),
+                        DropdownMenuItem(
+                          value: categoryTopAdPlacement,
+                          child: Text(
+                            t('أولوية أول 10 بالقسم', 'Top 10 in category'),
+                          ),
+                        ),
+                      ],
+                      onChanged: category == 'كوبون' || category == 'سؤال'
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setDialogState(() => paidPlacement = value);
+                            },
                     ),
                     if (category == 'سؤال')
                       SwitchListTile(
@@ -1873,6 +2035,19 @@ class _AdminScreenState extends State<AdminScreen>
       return;
     }
 
+    final paidType = switch (paidPlacement) {
+      vipAdPlacement => 'vip',
+      featuredHomeAdPlacement => 'featured',
+      categoryTopAdPlacement => 'category_top',
+      _ => '',
+    };
+    final priorityTier = switch (paidPlacement) {
+      vipAdPlacement => 3,
+      featuredHomeAdPlacement => 2,
+      categoryTopAdPlacement => 1,
+      _ => 0,
+    };
+
     final user = FirebaseAuth.instance.currentUser;
     await FirebaseFirestore.instance.collection('ads').add({
       'title': title,
@@ -1889,14 +2064,40 @@ class _AdminScreenState extends State<AdminScreen>
       'commentsCount': 0,
       if (category == 'سؤال') 'commentsEnabled': commentsEnabled,
       'status': status,
-      'isFeatured': isFeatured,
+      'isFeatured': priorityTier > 0,
+      'priorityTier': priorityTier,
+      'paymentRequired': false,
+      'paymentStatus': priorityTier > 0 ? 'free_pilot' : 'not_required',
+      'paidLaunchMode': priorityTier > 0
+          ? 'free_until_payments_enabled'
+          : 'not_required',
+      'placementDurationDays': _defaultDurationDays(priorityTier),
+      if (paidPlacement.isNotEmpty) ...{
+        'adPlacement': paidPlacement,
+        'paidAdType': paidType,
+        'isPaidAdRequest': true,
+        'requestedPlacementLabel': _paidReviewLabel({
+          'adPlacement': paidPlacement,
+          'paidAdType': paidType,
+          'priorityTier': priorityTier,
+        }),
+      },
       'imageUrl': '',
       'imageUrls': <String>[],
       'userId': user?.uid ?? '',
       'userEmail': user?.email ?? '',
       'createdByAdmin': true,
       'createdAt': FieldValue.serverTimestamp(),
-      if (status == 'approved') 'approvedAt': FieldValue.serverTimestamp(),
+      if (status == 'approved') ...{
+        'approvedAt': FieldValue.serverTimestamp(),
+        'activeFrom': FieldValue.serverTimestamp(),
+        if (priorityTier > 0)
+          'activeUntil': Timestamp.fromDate(
+            DateTime.now().add(
+              Duration(days: _defaultDurationDays(priorityTier)),
+            ),
+          ),
+      },
     });
 
     if (!mounted) return;
