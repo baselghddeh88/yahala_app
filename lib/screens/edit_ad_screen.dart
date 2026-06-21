@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 
 import '../services/ai_description_service.dart';
+import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
@@ -51,9 +52,12 @@ class _EditAdScreenState extends State<EditAdScreen> {
   bool allowCall = true;
   bool allowSms = true;
   bool allowInAppMessage = true;
+  bool promoteInCategory = false;
   bool wantsRestaurantCoupon = false;
   String housingType = 'إيجار';
+  String? selectedSubtype;
   String? couponType;
+  int selectedDurationDays = 30;
   DateTime? couponEndDate;
   DateTime? eventDate;
 
@@ -66,9 +70,20 @@ class _EditAdScreenState extends State<EditAdScreen> {
   bool get isQuestion => category == 'سؤال';
   bool get isEvent => category == 'فعاليات';
   bool get isPaidAdRequest =>
-      (widget.data['adPlacement']?.toString() ?? '').isNotEmpty;
-  bool get isVipAdRequest => widget.data['adPlacement'] == 'vip_slider';
+      (widget.data['adPlacement']?.toString() ?? '').isNotEmpty ||
+      promoteInCategory;
+  bool get isVipAdRequest => widget.data['adPlacement'] == vipAdPlacement;
+  bool get isFeaturedHomeRequest =>
+      widget.data['adPlacement'] == featuredHomeAdPlacement;
+  bool get isHomePaidAdRequest => isVipAdRequest || isFeaturedHomeRequest;
   bool get hasCouponDetails => isCoupon || wantsRestaurantCoupon;
+  bool get hasSubtypeOptions => subtypesForCategory(category).isNotEmpty;
+  bool get hasSelectedSubtype =>
+      selectedSubtype != null && selectedSubtype!.isNotEmpty;
+  bool get canPromoteInCategory =>
+      !isFreePromotionCategory(category) &&
+      !isHomePaidAdRequest &&
+      (!hasSubtypeOptions || hasSelectedSubtype);
 
   int get maxImages {
     return category == 'سكن' ? 5 : 1;
@@ -90,6 +105,18 @@ class _EditAdScreenState extends State<EditAdScreen> {
     );
     priceController.text = widget.data['price']?.toString() ?? '';
     housingType = widget.data['housingType']?.toString() ?? housingType;
+    selectedSubtype = widget.data['subCategory']?.toString();
+    promoteInCategory =
+        widget.data['adPlacement']?.toString() == categoryTopAdPlacement ||
+        widget.data['paidAdType']?.toString() == 'category_top';
+    final duration =
+        widget.data['requestedDurationDays'] ?? widget.data['adDurationDays'];
+    if (duration is int && adDurationOptionsDays.contains(duration)) {
+      selectedDurationDays = duration;
+    } else if (duration is num &&
+        adDurationOptionsDays.contains(duration.toInt())) {
+      selectedDurationDays = duration.toInt();
+    }
     wantsRestaurantCoupon =
         isRestaurantOrStore && widget.data['hasCoupon'] == true;
     couponType = widget.data['couponType']?.toString();
@@ -181,53 +208,100 @@ class _EditAdScreenState extends State<EditAdScreen> {
 
     final uploadedImages = await uploadNewImages();
     final allImages = [...existingImageUrls, ...uploadedImages];
+    final requestCategoryPromotion = canPromoteInCategory && promoteInCategory;
+    final clearCategoryPromotion =
+        canPromoteInCategory &&
+        !promoteInCategory &&
+        widget.data['adPlacement']?.toString() == categoryTopAdPlacement;
 
-    await FirebaseFirestore.instance.collection('ads').doc(widget.docId).update(
-      {
-        'title': titleController.text.trim(),
-        'description': descriptionController.text.trim(),
-        'city': cityController.text.trim(),
-        'address': addressController.text.trim(),
-        'zipCode': zipController.text.trim(),
-        'phone': cleanPhoneInput(phoneController.text),
-        'price': cleanMoneyInput(priceController.text),
-        if (isEvent && eventDate != null)
-          'eventDate': Timestamp.fromDate(eventDate!)
-        else
-          'eventDate': FieldValue.delete(),
-        if (isHousing) 'housingType': housingType,
-        if (hasCouponDetails) ...{
-          'hasCoupon': true,
-          'merchantName': isCoupon
-              ? descriptionController.text.trim()
-              : titleController.text.trim(),
-          'couponType': couponType,
-          'couponValue': couponType == 'percent'
-              ? cleanPercentInput(couponValueController.text)
-              : couponType == 'amount'
-              ? cleanMoneyInput(couponValueController.text)
-              : couponValueController.text.trim(),
-          'couponEndsAt': Timestamp.fromDate(couponEndDate!),
-          'couponLimit': int.tryParse(couponLimitController.text.trim()) ?? 0,
-          'couponTerms': couponTermsController.text.trim(),
-          'onePerUser': true,
-        } else ...{
-          'hasCoupon': false,
-          'couponType': FieldValue.delete(),
-          'couponValue': FieldValue.delete(),
-          'couponEndsAt': FieldValue.delete(),
-          'couponLimit': FieldValue.delete(),
-          'couponTerms': FieldValue.delete(),
-        },
-        'allowCall': allowCall,
-        'allowSms': allowSms,
-        'allowInAppMessage': allowInAppMessage,
-        'imageUrl': allImages.isNotEmpty ? allImages.first : '',
-        'imageUrls': allImages,
-        'status': 'pending',
-        'updatedAt': FieldValue.serverTimestamp(),
+    final updateData = <String, dynamic>{
+      'title': titleController.text.trim(),
+      'description': descriptionController.text.trim(),
+      'city': cityController.text.trim(),
+      'address': addressController.text.trim(),
+      'zipCode': zipController.text.trim(),
+      'phone': cleanPhoneInput(phoneController.text),
+      'price': cleanMoneyInput(priceController.text),
+      if (isEvent && eventDate != null)
+        'eventDate': Timestamp.fromDate(eventDate!)
+      else
+        'eventDate': FieldValue.delete(),
+      if (isHousing) 'housingType': housingType,
+      if (hasCouponDetails) ...{
+        'hasCoupon': true,
+        'merchantName': isCoupon
+            ? descriptionController.text.trim()
+            : titleController.text.trim(),
+        'couponType': couponType,
+        'couponValue': couponType == 'percent'
+            ? cleanPercentInput(couponValueController.text)
+            : couponType == 'amount'
+            ? cleanMoneyInput(couponValueController.text)
+            : couponValueController.text.trim(),
+        'couponEndsAt': Timestamp.fromDate(couponEndDate!),
+        'couponLimit': int.tryParse(couponLimitController.text.trim()) ?? 0,
+        'couponTerms': couponTermsController.text.trim(),
+        'onePerUser': true,
+      } else ...{
+        'hasCoupon': false,
+        'couponType': FieldValue.delete(),
+        'couponValue': FieldValue.delete(),
+        'couponEndsAt': FieldValue.delete(),
+        'couponLimit': FieldValue.delete(),
+        'couponTerms': FieldValue.delete(),
       },
-    );
+      'allowCall': allowCall,
+      'allowSms': allowSms,
+      'allowInAppMessage': allowInAppMessage,
+      'imageUrl': allImages.isNotEmpty ? allImages.first : '',
+      'imageUrls': allImages,
+      'status': 'pending',
+      if (!isFreePromotionCategory(category)) ...{
+        'requestedDurationDays': selectedDurationDays,
+        'adDurationDays': selectedDurationDays,
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (requestCategoryPromotion) {
+      updateData.addAll({
+        'adPlacement': categoryTopAdPlacement,
+        'paidAdType': 'category_top',
+        'isPaidAdRequest': true,
+        'requestedCategory': category,
+        'requestedPlacementLabel': t(
+          'أولوية أول 10 داخل القسم',
+          'Top 10 priority inside category',
+        ),
+        'paymentRequired': false,
+        'paymentStatus': 'free_pilot',
+        'paidLaunchMode': 'free_until_payments_enabled',
+      });
+    } else if (clearCategoryPromotion) {
+      updateData.addAll({
+        'adPlacement': FieldValue.delete(),
+        'paidAdType': FieldValue.delete(),
+        'isPaidAdRequest': FieldValue.delete(),
+        'requestedPlacementLabel': FieldValue.delete(),
+        'paymentStatus': 'not_required',
+        'paidLaunchMode': FieldValue.delete(),
+      });
+    }
+
+    if (hasSubtypeOptions && hasSelectedSubtype) {
+      updateData['subCategory'] = selectedSubtype;
+      updateData['subCategoryLabelAr'] = subtypeLabel(selectedSubtype!, true);
+      updateData['subCategoryLabelEn'] = subtypeLabel(selectedSubtype!, false);
+    } else if (hasSubtypeOptions) {
+      updateData['subCategory'] = FieldValue.delete();
+      updateData['subCategoryLabelAr'] = FieldValue.delete();
+      updateData['subCategoryLabelEn'] = FieldValue.delete();
+    }
+
+    await FirebaseFirestore.instance
+        .collection('ads')
+        .doc(widget.docId)
+        .update(updateData);
 
     if (!mounted) return;
 
@@ -390,6 +464,9 @@ class _EditAdScreenState extends State<EditAdScreen> {
               const SizedBox(height: 12),
               if (isPaidAdRequest) _paidAdGuidelines(),
               if (isHousing) _housingTypeOptions(),
+              if (hasSubtypeOptions) _subtypeSelector(),
+              if (canPromoteInCategory) _categoryPromotionCard(),
+              if (isPaidAdRequest || canPromoteInCategory) _durationSelector(),
               _input(
                 controller: titleController,
                 hint: titleHint(),
@@ -558,15 +635,25 @@ class _EditAdScreenState extends State<EditAdScreen> {
   Widget _paidAdGuidelines() {
     final sizeText = isVipAdRequest
         ? t('المقاس الأفضل: 1200 × 540 بكسل', 'Best size: 1200 x 540 px')
-        : t('المقاس الأفضل: 900 × 500 بكسل', 'Best size: 900 x 500 px');
+        : isFeaturedHomeRequest
+        ? t('المقاس الأفضل: 900 × 500 بكسل', 'Best size: 900 x 500 px')
+        : t(
+            'صورة واحدة واضحة تكفي لتمييز الإعلان داخل القسم',
+            'One clear image is enough for category priority',
+          );
     final placementText = isVipAdRequest
         ? t(
             'هذا الإعلان يظهر أعلى الصفحة الرئيسية كأقوى مساحة إعلانية.',
             'This ad appears at the top of the home page as the strongest ad spot.',
           )
-        : t(
+        : isFeaturedHomeRequest
+        ? t(
             'هذا الإعلان يظهر ضمن قسم الإعلانات المميزة أسفل إعلان VIP.',
             'This ad appears in the featured ads section below the VIP ad.',
+          )
+        : t(
+            'هذا الإعلان يبقى داخل نفس القسم ويظهر ضمن أول الإعلانات.',
+            'This ad stays in this category and appears near the top.',
           );
 
     return Container(
@@ -590,6 +677,122 @@ class _EditAdScreenState extends State<EditAdScreen> {
                 fontWeight: FontWeight.w700,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryPromotionCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: promoteInCategory
+            ? yaHalaGreen.withValues(alpha: 0.10)
+            : (widget.isDark ? cardColor : const Color(0xFFF3F3F3)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: promoteInCategory
+              ? yaHalaGreen.withValues(alpha: 0.45)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: yaHalaGold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.trending_up, color: yaHalaGold),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t(
+                    'اجعل إعلانك مميز داخل القسم',
+                    'Promote inside this category',
+                  ),
+                  style: TextStyle(
+                    color: widget.isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  t(
+                    'حاليا مجاني، وبعدين منفعّل الدفع لما يكبر التطبيق.',
+                    'Free for now. Payment can be enabled later.',
+                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: promoteInCategory,
+            activeThumbColor: yaHalaGreen,
+            onChanged: isSaving
+                ? null
+                : (value) => setState(() => promoteInCategory = value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _durationSelector() {
+    String labelFor(int days) {
+      if (days == 7) return t('أسبوع', '1 week');
+      if (days == 14) return t('أسبوعين', '2 weeks');
+      return t('شهر', '1 month');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            t('مدة الإعلان', 'Ad duration'),
+            style: TextStyle(
+              color: widget.isDark ? Colors.white : Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: adDurationOptionsDays.map((days) {
+              final selected = selectedDurationDays == days;
+              return ChoiceChip(
+                selected: selected,
+                label: Text(labelFor(days)),
+                selectedColor: yaHalaGreen,
+                backgroundColor: widget.isDark ? bgDark : Colors.white,
+                labelStyle: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : (widget.isDark ? Colors.white : Colors.black),
+                  fontWeight: FontWeight.w800,
+                ),
+                onSelected: isSaving
+                    ? null
+                    : (_) => setState(() => selectedDurationDays = days),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -1265,6 +1468,50 @@ class _EditAdScreenState extends State<EditAdScreen> {
         style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
       ),
       onChanged: isSaving ? null : onChanged,
+    );
+  }
+
+  Widget _subtypeSelector() {
+    final options = subtypesForCategory(category);
+    if (options.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        initialValue: hasSelectedSubtype ? selectedSubtype : null,
+        isExpanded: true,
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+          prefixIcon: const Icon(Icons.category, color: Colors.grey),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide.none,
+          ),
+        ),
+        dropdownColor: widget.isDark ? cardColor : Colors.white,
+        hint: Text(
+          t('اختر القسم الفرعي', 'Choose subcategory'),
+          style: const TextStyle(color: Colors.grey),
+        ),
+        style: TextStyle(
+          color: widget.isDark ? Colors.white : Colors.black,
+          fontWeight: FontWeight.w800,
+        ),
+        items: options
+            .map(
+              (option) => DropdownMenuItem<String>(
+                value: option.value,
+                child: Text(t(option.ar, option.en)),
+              ),
+            )
+            .toList(),
+        onChanged: isSaving
+            ? null
+            : (value) {
+                setState(() => selectedSubtype = value);
+              },
+      ),
     );
   }
 
