@@ -13,6 +13,7 @@ class PaidCategoryAds extends StatelessWidget {
   final bool isArabic;
   final bool isDark;
   final String category;
+  final String? subCategory;
   final IconData icon;
 
   const PaidCategoryAds({
@@ -20,6 +21,7 @@ class PaidCategoryAds extends StatelessWidget {
     required this.isArabic,
     required this.isDark,
     required this.category,
+    this.subCategory,
     required this.icon,
   });
 
@@ -34,6 +36,9 @@ class PaidCategoryAds extends StatelessWidget {
   }
 
   Widget _featuredAds(BuildContext context) {
+    final selectedSubCategory = subCategory?.trim() ?? '';
+    if (selectedSubCategory.isEmpty) return const SizedBox.shrink();
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('ads')
@@ -44,7 +49,10 @@ class PaidCategoryAds extends StatelessWidget {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
         final featured = sortPaidAdsByPromotion(
-          snapshot.data!.docs,
+          snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['subCategory']?.toString() == selectedSubCategory;
+          }),
         ).take(15).toList();
 
         if (featured.isEmpty) return const SizedBox.shrink();

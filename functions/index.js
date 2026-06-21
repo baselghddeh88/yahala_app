@@ -157,7 +157,7 @@ function adReviewType(ad) {
   const category = String(ad.category || "");
 
   if (category === "كوبون" || category === "سؤال") return "مجاني";
-  if (placement === "vip_slider" || paidType === "vip") return "VIP";
+  if (placement === "vip_slider" || paidType === "home_vip") return "VIP";
   if (placement === "featured" || paidType === "featured") return "مميز";
   if (placement === "category_top" || paidType === "category_top") {
     return "أولوية قسم";

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/ad_actions.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
@@ -74,7 +75,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     final phone = data['phone']?.toString() ?? '';
     final formattedPhone = formatPhoneNumber(phone);
     final category = data['category']?.toString() ?? '';
-    final rawPrice = category == 'مطاعم ومحلات'
+    final rawPrice = isRestaurantOrStoreCategory(category)
         ? ''
         : data['price']?.toString() ?? '';
     final price = rawPrice.isEmpty ? '' : formatMoney(rawPrice);

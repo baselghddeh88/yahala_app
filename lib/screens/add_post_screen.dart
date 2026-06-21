@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 
 import '../services/ai_description_service.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
@@ -60,10 +61,13 @@ class _AddPostScreenState extends State<AddPostScreen> {
   bool allowCall = true;
   bool allowSms = true;
   bool allowInAppMessage = true;
+  bool promoteInCategory = false;
   bool wantsRestaurantCoupon = false;
   String housingType = 'إيجار';
+  String? selectedSubtype;
   String? couponType;
   String? adPlacement;
+  int selectedDurationDays = 30;
   DateTime? couponEndDate;
   DateTime? eventDate;
 
@@ -71,19 +75,31 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   int get maxImages {
     if (isPaidAdRequest) return 1;
-    return selectedCategory == 'سكن' || selectedCategory == 'مطاعم ومحلات'
-        ? 5
-        : 1;
+    return selectedCategory == 'سكن' ? 5 : 1;
   }
 
   bool get isCategoryLocked => widget.initialCategory != null;
   bool get isHousing => selectedCategory == 'سكن';
-  bool get isRestaurantOrStore => selectedCategory == 'مطاعم ومحلات';
+  bool get isRestaurantOrStore => isRestaurantOrStoreCategory(selectedCategory);
   bool get isCoupon => selectedCategory == 'كوبون';
-  bool get isPaidAdRequest => adPlacement != null;
+  bool get hasSubtypeOptions =>
+      subtypesForCategory(selectedCategory).isNotEmpty;
+  bool get hasSelectedSubtype =>
+      selectedSubtype != null && selectedSubtype!.isNotEmpty;
+  bool get canPromoteInCategory =>
+      widget.initialAdPlacement == null &&
+      !isFreePromotionCategory(selectedCategory) &&
+      (!hasSubtypeOptions || hasSelectedSubtype);
+  String? get effectiveAdPlacement => isFreePromotionCategory(selectedCategory)
+      ? null
+      : promoteInCategory
+      ? categoryTopAdPlacement
+      : adPlacement;
+  bool get isPaidAdRequest => effectiveAdPlacement != null;
   bool get isVipAdRequest => adPlacement == vipAdPlacement;
   bool get isFeaturedAdRequest => adPlacement == featuredHomeAdPlacement;
-  bool get isCategoryTopRequest => adPlacement == categoryTopAdPlacement;
+  bool get isCategoryTopRequest =>
+      effectiveAdPlacement == categoryTopAdPlacement;
   bool get hasCouponDetails => isCoupon || wantsRestaurantCoupon;
   bool get isEvent => selectedCategory == 'فعاليات';
 
@@ -92,7 +108,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
     super.initState();
     adPlacement = widget.initialAdPlacement;
     selectedCategory =
-        widget.initialCategory ?? (isPaidAdRequest ? 'مطاعم ومحلات' : 'وظيفة');
+        widget.initialCategory ??
+        (isPaidAdRequest ? restaurantCategory : 'وظيفة');
   }
 
   @override
@@ -234,7 +251,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
           userData['photoUrl']?.toString() ?? user?.photoURL ?? '';
       final paidType = _requestedPaidType();
       final placementLabel = _requestedPlacementLabel();
-      final isAlwaysFreeCategory = isCoupon || selectedCategory == 'سؤال';
+      final isAlwaysFreeCategory = isFreePromotionCategory(selectedCategory);
+      final expiresAt = Timestamp.fromDate(
+        DateTime.now().add(Duration(days: selectedDurationDays)),
+      );
 
       await FirebaseFirestore.instance.collection('ads').add({
         'title': titleController.text.trim(),
@@ -251,10 +271,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'phone': cleanPhoneInput(phoneController.text),
         'price': cleanMoneyInput(priceController.text),
         'category': selectedCategory,
+        if (selectedSubtype != null && selectedSubtype!.isNotEmpty)
+          'subCategory': selectedSubtype,
+        if (selectedSubtype != null && selectedSubtype!.isNotEmpty)
+          'subCategoryLabelAr': subtypeLabel(selectedSubtype!, true),
+        if (selectedSubtype != null && selectedSubtype!.isNotEmpty)
+          'subCategoryLabelEn': subtypeLabel(selectedSubtype!, false),
+        if (!isAlwaysFreeCategory) ...{
+          'requestedDurationDays': selectedDurationDays,
+          'adDurationDays': selectedDurationDays,
+        },
         if (isEvent && eventDate != null)
           'eventDate': Timestamp.fromDate(eventDate!),
         if (isPaidAdRequest && !isAlwaysFreeCategory) ...{
-          'adPlacement': adPlacement,
+          'adPlacement': effectiveAdPlacement,
           'paidAdType': paidType,
           'isPaidAdRequest': true,
           'requestedCategory': selectedCategory,
@@ -299,6 +329,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'createdAt': FieldValue.serverTimestamp(),
         if (widget.publishImmediately)
           'approvedAt': FieldValue.serverTimestamp(),
+        if (widget.publishImmediately && !isAlwaysFreeCategory)
+          'activeUntil': expiresAt,
       });
 
       if (!mounted) return;
@@ -324,7 +356,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   String _requestedPaidType() {
-    if (isVipAdRequest) return 'vip';
+    if (isVipAdRequest) return 'home_vip';
     if (isFeaturedAdRequest) return 'featured';
     if (isCategoryTopRequest) return 'category_top';
     return '';
@@ -428,6 +460,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
     setState(() {
       selectedCategory = value;
       selectedImages.clear();
+      selectedSubtype = null;
+      if (isFreePromotionCategory(value)) {
+        promoteInCategory = false;
+      }
       if (!isEvent) eventDate = null;
       if (!isRestaurantOrStore && !isCoupon) {
         wantsRestaurantCoupon = false;
@@ -452,8 +488,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (isHousing) return t('أضف سكن', 'Add Housing');
     if (selectedCategory == 'خدمة') return t('أضف خدمة', 'Add Service');
     if (isCoupon) return t('أضف كوبون', 'Add Coupon');
-    if (isRestaurantOrStore) {
-      return t('أضف مطعم أو محل', 'Add Restaurant or Store');
+    if (selectedCategory == restaurantCategory) {
+      return t('أضف مطعم أو كافيه', 'Add Restaurant or Cafe');
+    }
+    if (selectedCategory == storesCategory) {
+      return t('أضف محل تجاري', 'Add Store');
     }
     return t('أضف إعلان', 'Add Post');
   }
@@ -462,7 +501,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (isPaidAdRequest) return t('عنوان الإعلان', 'Ad title');
     if (selectedCategory == 'وظيفة') return t('عنوان الوظيفة', 'Job title');
     if (isHousing) return t('عنوان الإعلان', 'Ad title');
-    if (isRestaurantOrStore) return t('اسم المحل', 'Store name');
+    if (selectedCategory == restaurantCategory) {
+      return t('اسم المطعم أو الكافيه', 'Restaurant or cafe name');
+    }
+    if (selectedCategory == storesCategory) return t('اسم المحل', 'Store name');
     if (selectedCategory == 'فعاليات') {
       return t('اسم المناسبة', 'Event name');
     }
@@ -527,8 +569,13 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 ),
                 _typeCard(
                   Icons.restaurant,
-                  t('مطاعم ومحلات عربية', 'Arab Restaurants & Stores'),
-                  'مطاعم ومحلات',
+                  t('مطاعم وكافيهات', 'Restaurants & Cafes'),
+                  restaurantCategory,
+                ),
+                _typeCard(
+                  Icons.storefront,
+                  t('محلات تجارية', 'Stores'),
+                  storesCategory,
                 ),
                 _typeCard(
                   Icons.event,
@@ -547,7 +594,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
               const SizedBox(height: 12),
 
               if (isPaidAdRequest) _paidAdGuidelines(),
+              if (canPromoteInCategory) _categoryPromotionCard(),
+              if (!isFreePromotionCategory(selectedCategory))
+                _durationSelector(),
               if (isHousing) _housingTypeOptions(),
+              if (subtypesForCategory(selectedCategory).isNotEmpty)
+                _subtypeSelector(),
               _input(titleHint(), titleController),
               _input(
                 descriptionHint(),
@@ -675,15 +727,25 @@ class _AddPostScreenState extends State<AddPostScreen> {
   Widget _paidAdGuidelines() {
     final sizeText = isVipAdRequest
         ? t('المقاس الأفضل: 1200 × 540 بكسل', 'Best size: 1200 x 540 px')
-        : t('المقاس الأفضل: 900 × 500 بكسل', 'Best size: 900 x 500 px');
+        : isFeaturedAdRequest
+        ? t('المقاس الأفضل: 900 × 500 بكسل', 'Best size: 900 x 500 px')
+        : t(
+            'صورة واحدة واضحة تكفي لتمييز الإعلان داخل القسم',
+            'One clear image is enough for category priority',
+          );
     final placementText = isVipAdRequest
         ? t(
             'هذا الإعلان يظهر أعلى الصفحة الرئيسية كأقوى مساحة إعلانية.',
             'This ad appears at the top of the home page as the strongest ad spot.',
           )
-        : t(
+        : isFeaturedAdRequest
+        ? t(
             'هذا الإعلان يظهر ضمن قسم الإعلانات المميزة أسفل إعلان VIP.',
             'This ad appears in the featured ads section below the VIP ad.',
+          )
+        : t(
+            'هذا الإعلان يبقى داخل نفس القسم ويظهر ضمن أول الإعلانات.',
+            'This ad stays in this category and appears near the top.',
           );
 
     return Container(
@@ -706,7 +768,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 Text(
                   isVipAdRequest
                       ? t('إعلان VIP أعلى الصفحة', 'Top Page VIP Ad')
-                      : t('إعلان مميز', 'Featured Ad'),
+                      : isFeaturedAdRequest
+                      ? t('إعلان مميز', 'Featured Ad')
+                      : t('تمييز داخل القسم', 'Category priority'),
                   style: TextStyle(
                     color: widget.isDark ? Colors.white : Colors.black,
                     fontWeight: FontWeight.w900,
@@ -722,6 +786,132 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryPromotionCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: promoteInCategory
+            ? yaHalaGreen.withValues(alpha: 0.10)
+            : (widget.isDark ? cardColor : const Color(0xFFF3F3F3)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: promoteInCategory
+              ? yaHalaGreen.withValues(alpha: 0.45)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: yaHalaGold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.trending_up, color: yaHalaGold),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t(
+                    'اجعل إعلانك مميز داخل القسم',
+                    'Promote inside this category',
+                  ),
+                  style: TextStyle(
+                    color: widget.isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  t(
+                    'حاليا مجاني، وبعدين منفعّل الدفع لما يكبر التطبيق.',
+                    'Free for now. Payment can be enabled later.',
+                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: promoteInCategory,
+            activeThumbColor: yaHalaGreen,
+            onChanged: isLoading
+                ? null
+                : (value) {
+                    setState(() {
+                      promoteInCategory = value;
+                      if (value && selectedImages.length > 1) {
+                        final firstImage = selectedImages.first;
+                        selectedImages
+                          ..clear()
+                          ..add(firstImage);
+                      }
+                    });
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _durationSelector() {
+    String labelFor(int days) {
+      if (days == 7) return t('أسبوع', '1 week');
+      if (days == 14) return t('أسبوعين', '2 weeks');
+      return t('شهر', '1 month');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            t('مدة الإعلان', 'Ad duration'),
+            style: TextStyle(
+              color: widget.isDark ? Colors.white : Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: adDurationOptionsDays.map((days) {
+              final selected = selectedDurationDays == days;
+              return ChoiceChip(
+                selected: selected,
+                label: Text(labelFor(days)),
+                selectedColor: yaHalaGreen,
+                backgroundColor: widget.isDark ? bgDark : Colors.white,
+                labelStyle: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : (widget.isDark ? Colors.white : Colors.black),
+                  fontWeight: FontWeight.w800,
+                ),
+                onSelected: isLoading
+                    ? null
+                    : (_) => setState(() => selectedDurationDays = days),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -1465,6 +1655,70 @@ class _AddPostScreenState extends State<AddPostScreen> {
         ),
       ),
     );
+  }
+
+  Widget _subtypeSelector() {
+    final options = subtypesForCategory(selectedCategory);
+    if (options.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedSubtype,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: yaHalaGreen),
+          dropdownColor: widget.isDark ? cardColor : Colors.white,
+          hint: Text(
+            _subtypeHint(),
+            style: const TextStyle(color: Colors.grey),
+          ),
+          items: options
+              .map(
+                (option) => DropdownMenuItem<String>(
+                  value: option.value,
+                  child: Text(
+                    widget.isArabic ? option.ar : option.en,
+                    style: TextStyle(
+                      color: widget.isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: isLoading
+              ? null
+              : (value) {
+                  setState(() {
+                    selectedSubtype = value;
+                    if (!hasSelectedSubtype) promoteInCategory = false;
+                  });
+                },
+        ),
+      ),
+    );
+  }
+
+  String _subtypeHint() {
+    if (selectedCategory == 'خدمة') {
+      return t('اختر نوع الخدمة', 'Choose service type');
+    }
+    if (selectedCategory == restaurantCategory) {
+      return t('اختر نوع المطعم', 'Choose restaurant type');
+    }
+    if (selectedCategory == storesCategory) {
+      return t('اختر نوع المحل', 'Choose store type');
+    }
+    if (selectedCategory == 'محامين وهجرة') {
+      return t('اختر نوع الخدمة القانونية', 'Choose legal service type');
+    }
+    return t('اختر النوع', 'Choose type');
   }
 
   Widget _input(

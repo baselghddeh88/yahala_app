@@ -6,6 +6,7 @@ import 'add_post_screen.dart';
 import 'search_screen.dart';
 import '../services/ad_actions.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 import '../widgets/favorite_button.dart';
@@ -41,8 +42,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
   String query = '';
   String cityFilter = '';
   String zipFilter = '';
+  String subCategoryFilter = '';
 
   String t(String ar, String en) => isArabic ? ar : en;
+  bool get hasSubtypeFilters => serviceSubtypes.isNotEmpty;
 
   @override
   void dispose() {
@@ -60,14 +63,30 @@ class _ServicesScreenState extends State<ServicesScreen> {
       data['title'],
       data['description'],
       data['price'],
+      data['subCategory'],
+      data['subCategoryLabelAr'],
+      data['subCategoryLabelEn'],
       city,
       address,
       zip,
     ].whereType<Object>().join(' ').toLowerCase();
 
     return (query.isEmpty || text.contains(query)) &&
+        (subCategoryFilter.isEmpty ||
+            data['subCategory']?.toString() == subCategoryFilter) &&
         (cityFilter.isEmpty || city.contains(cityFilter)) &&
         (zipFilter.isEmpty || zip.startsWith(zipFilter));
+  }
+
+  List<QueryDocumentSnapshot<Object?>> _sortVisibleServices(
+    Iterable<QueryDocumentSnapshot<Object?>> docs,
+  ) {
+    final visible = docs.toList();
+    if (hasSubtypeFilters && subCategoryFilter.isEmpty) {
+      visible.sort(compareAdsNewestFirst);
+      return visible;
+    }
+    return sortAdsByPromotion(visible);
   }
 
   @override
@@ -93,6 +112,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _searchBox(context, t('ابحث عن خدمة...', 'Search services...')),
+              const SizedBox(height: 16),
+              _serviceDirectory(),
               const SizedBox(height: 16),
 
               SizedBox(
@@ -133,6 +154,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 isArabic: isArabic,
                 isDark: isDark,
                 category: 'خدمة',
+                subCategory: subCategoryFilter,
                 icon: Icons.handyman,
               ),
 
@@ -168,7 +190,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     );
                   }
 
-                  final services = sortAdsByPromotion(
+                  final services = _sortVisibleServices(
                     (snapshot.data?.docs ?? []).where((doc) {
                       final data = doc.data() as Map<String, dynamic>;
                       return _matchesFilters(data);
@@ -276,6 +298,109 @@ class _ServicesScreenState extends State<ServicesScreen> {
     );
   }
 
+  IconData _serviceIcon(String value) {
+    return switch (value) {
+      'plumbing' => Icons.plumbing,
+      'electrician' => Icons.electrical_services,
+      'carpenter' => Icons.handyman,
+      'cleaning' => Icons.cleaning_services,
+      'painting' => Icons.format_paint,
+      'moving' => Icons.local_shipping,
+      'ac_repair' => Icons.ac_unit,
+      'camera_security' => Icons.videocam,
+      'taxes' => Icons.receipt_long,
+      'notary' => Icons.edit_document,
+      'translation' => Icons.translate,
+      'beauty' => Icons.spa,
+      'education' => Icons.school,
+      'tech_repair' => Icons.phone_iphone,
+      _ => Icons.miscellaneous_services,
+    };
+  }
+
+  Widget _serviceDirectory() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(t('أقسام الخدمات', 'Service categories')),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: serviceSubtypes.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1.05,
+          ),
+          itemBuilder: (context, index) {
+            final option = serviceSubtypes[index];
+            final selected = subCategoryFilter == option.value;
+            return InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                setState(() {
+                  subCategoryFilter = selected ? '' : option.value;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? yaHalaGreen
+                      : (isDark ? cardColor : const Color(0xFFF3F3F3)),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected
+                        ? yaHalaGreen
+                        : Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _serviceIcon(option.value),
+                      color: selected ? Colors.white : yaHalaGreen,
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isArabic ? option.ar : option.en,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? Colors.white
+                            : (isDark ? Colors.white : Colors.black),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        if (subCategoryFilter.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () => setState(() => subCategoryFilter = ''),
+              icon: const Icon(Icons.close, size: 18),
+              label: Text(t('عرض كل الخدمات', 'Show all services')),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _filterPanel(String title) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -307,6 +432,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
               setState(() => query = value.trim().toLowerCase());
             },
           ),
+          _subCategoryDropdown(),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -363,6 +490,49 @@ class _ServicesScreenState extends State<ServicesScreen> {
           ),
         ),
         onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _subCategoryDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: isDark ? bgDark : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: subCategoryFilter.isEmpty ? null : subCategoryFilter,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: yaHalaGreen),
+          dropdownColor: isDark ? cardColor : Colors.white,
+          hint: Text(
+            t('كل الخدمات', 'All services'),
+            style: const TextStyle(color: Colors.grey),
+          ),
+          items: [
+            DropdownMenuItem<String>(
+              value: '',
+              child: Text(
+                t('كل الخدمات', 'All services'),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+              ),
+            ),
+            ...serviceSubtypes.map(
+              (option) => DropdownMenuItem<String>(
+                value: option.value,
+                child: Text(
+                  isArabic ? option.ar : option.en,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                ),
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => subCategoryFilter = value ?? '');
+          },
+        ),
       ),
     );
   }

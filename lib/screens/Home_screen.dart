@@ -22,6 +22,7 @@ import 'search_screen.dart';
 import '../constants.dart';
 import '../services/app_settings.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
@@ -832,10 +833,17 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       _genericCategory(
         icon: Icons.restaurant,
-        labelAr: 'مطاعم ومحلات عربية',
-        labelEn: 'Arab Restaurants & Stores',
-        category: 'مطاعم ومحلات',
+        labelAr: 'مطاعم وكافيهات',
+        labelEn: 'Restaurants & Cafes',
+        category: restaurantCategory,
         color: yaHalaGold,
+      ),
+      _genericCategory(
+        icon: Icons.storefront,
+        labelAr: 'محلات تجارية',
+        labelEn: 'Stores',
+        category: storesCategory,
+        color: yaHalaGreen,
       ),
       _genericCategory(
         icon: Icons.event,

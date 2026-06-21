@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 
 import '../services/ai_description_service.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
@@ -60,7 +61,7 @@ class _EditAdScreenState extends State<EditAdScreen> {
   bool isFormattingDescription = false;
   String get category => widget.data['category']?.toString() ?? '';
   bool get isHousing => category == 'سكن';
-  bool get isRestaurantOrStore => category == 'مطاعم ومحلات';
+  bool get isRestaurantOrStore => isRestaurantOrStoreCategory(category);
   bool get isCoupon => category == 'كوبون';
   bool get isQuestion => category == 'سؤال';
   bool get isEvent => category == 'فعاليات';
@@ -70,7 +71,7 @@ class _EditAdScreenState extends State<EditAdScreen> {
   bool get hasCouponDetails => isCoupon || wantsRestaurantCoupon;
 
   int get maxImages {
-    return category == 'سكن' || category == 'مطاعم ومحلات' ? 5 : 1;
+    return category == 'سكن' ? 5 : 1;
   }
 
   String t(String ar, String en) => widget.isArabic ? ar : en;
@@ -509,7 +510,11 @@ class _EditAdScreenState extends State<EditAdScreen> {
     if (isPaidAdRequest) return t('عنوان الإعلان', 'Ad title');
     if (category == 'وظيفة') return t('عنوان الوظيفة', 'Job title');
     if (isHousing) return t('عنوان الإعلان', 'Ad title');
-    if (isRestaurantOrStore) return t('اسم المحل', 'Store name');
+    if (category == restaurantCategory ||
+        category == legacyRestaurantStoreCategory) {
+      return t('اسم المطعم أو الكافيه', 'Restaurant or cafe name');
+    }
+    if (category == storesCategory) return t('اسم المحل', 'Store name');
     if (category == 'فعاليات') return t('اسم المناسبة', 'Event name');
     if (category == 'محامين وهجرة') {
       return t('اسم المحامي أو المكتب', 'Lawyer or office name');

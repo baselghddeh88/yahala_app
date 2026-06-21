@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'ad_details_screen.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtypes.dart';
 import '../widgets/city_picker_field.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -41,16 +42,25 @@ class _SearchScreenState extends State<SearchScreen> {
     final desc = data['description']?.toString().toLowerCase() ?? '';
     final city = data['city']?.toString() ?? '';
     final category = data['category']?.toString() ?? '';
+    final subCategory = [
+      data['subCategory'],
+      data['subCategoryLabelAr'],
+      data['subCategoryLabelEn'],
+    ].whereType<Object>().join(' ').toLowerCase();
 
     final textMatches =
         query.isEmpty ||
         title.contains(query) ||
         desc.contains(query) ||
         city.toLowerCase().contains(query) ||
-        category.toLowerCase().contains(query);
+        category.toLowerCase().contains(query) ||
+        subCategory.contains(query);
 
     final categoryMatches =
-        selectedCategory.isEmpty || category == selectedCategory;
+        selectedCategory.isEmpty ||
+        category == selectedCategory ||
+        (selectedCategory == restaurantCategory &&
+            category == legacyRestaurantStoreCategory);
 
     final cityMatches = selectedCity.isEmpty || city == selectedCity;
 
@@ -118,7 +128,8 @@ class _SearchScreenState extends State<SearchScreen> {
                         'خدمة',
                         'كوبون',
                         'سؤال',
-                        'مطاعم ومحلات',
+                        restaurantCategory,
+                        storesCategory,
                         'فعاليات',
                         'محامين وهجرة',
                       ],

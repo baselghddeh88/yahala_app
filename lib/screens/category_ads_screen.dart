@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'ad_details_screen.dart';
 import 'add_post_screen.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
@@ -49,9 +50,28 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   String query = '';
   String cityFilter = '';
   String zipFilter = '';
+  String subCategoryFilter = '';
 
   String t(String ar, String en) => isArabic ? ar : en;
-  bool get isRestaurantOrStore => category == 'مطاعم ومحلات';
+  bool get isRestaurantOrStore => isRestaurantOrStoreCategory(category);
+  bool get hasSubtypeFilters => subtypesForCategory(category).isNotEmpty;
+  List<String> get categoryQueryValues => category == restaurantCategory
+      ? [restaurantCategory, legacyRestaurantStoreCategory]
+      : [category];
+
+  Stream<QuerySnapshot> _adsStream() {
+    var query = FirebaseFirestore.instance
+        .collection('ads')
+        .where('status', isEqualTo: 'approved');
+
+    if (categoryQueryValues.length == 1) {
+      query = query.where('category', isEqualTo: category);
+    } else {
+      query = query.where('category', whereIn: categoryQueryValues);
+    }
+
+    return query.snapshots();
+  }
 
   @override
   void dispose() {
@@ -70,14 +90,30 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
       data['description'],
       data['price'],
       data['phone'],
+      data['subCategory'],
+      data['subCategoryLabelAr'],
+      data['subCategoryLabelEn'],
       city,
       address,
       zip,
     ].whereType<Object>().join(' ').toLowerCase();
 
     return (query.isEmpty || text.contains(query)) &&
+        (subCategoryFilter.isEmpty ||
+            data['subCategory']?.toString() == subCategoryFilter) &&
         (cityFilter.isEmpty || city.contains(cityFilter)) &&
         (zipFilter.isEmpty || zip.startsWith(zipFilter));
+  }
+
+  List<QueryDocumentSnapshot<Object?>> _sortVisibleAds(
+    Iterable<QueryDocumentSnapshot<Object?>> docs,
+  ) {
+    final visible = docs.toList();
+    if (hasSubtypeFilters && subCategoryFilter.isEmpty) {
+      visible.sort(compareAdsNewestFirst);
+      return visible;
+    }
+    return sortAdsByPromotion(visible);
   }
 
   @override
@@ -110,16 +146,12 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
               const SizedBox(height: 22),
               _sectionTitle(
                 isRestaurantOrStore
-                    ? t('آخر المطاعم والمحلات', 'Latest restaurants and stores')
+                    ? t('آخر الإعلانات', 'Latest ads')
                     : t('آخر الإعلانات', 'Latest ads'),
               ),
               const SizedBox(height: 12),
               StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('ads')
-                    .where('category', isEqualTo: category)
-                    .where('status', isEqualTo: 'approved')
-                    .snapshots(),
+                stream: _adsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return Text(
@@ -139,7 +171,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                     );
                   }
 
-                  final ads = sortAdsByPromotion(
+                  final ads = _sortVisibleAds(
                     snapshot.data!.docs.where((doc) {
                       final data = doc.data() as Map<String, dynamic>;
                       return _matchesFilters(data);
@@ -199,6 +231,10 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
               setState(() => query = value.trim().toLowerCase());
             },
           ),
+          if (subtypesForCategory(category).isNotEmpty) ...[
+            _subCategoryDropdown(),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(
@@ -259,6 +295,51 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     );
   }
 
+  Widget _subCategoryDropdown() {
+    final options = subtypesForCategory(category);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: isDark ? bgDark : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: subCategoryFilter.isEmpty ? null : subCategoryFilter,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: yaHalaGreen),
+          dropdownColor: isDark ? cardColor : Colors.white,
+          hint: Text(
+            t('كل الأنواع', 'All types'),
+            style: const TextStyle(color: Colors.grey),
+          ),
+          items: [
+            DropdownMenuItem<String>(
+              value: '',
+              child: Text(
+                t('كل الأنواع', 'All types'),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+              ),
+            ),
+            ...options.map(
+              (option) => DropdownMenuItem<String>(
+                value: option.value,
+                child: Text(
+                  isArabic ? option.ar : option.en,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                ),
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => subCategoryFilter = value ?? '');
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _addButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
@@ -285,7 +366,9 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
         icon: const Icon(Icons.add, color: Colors.white),
         label: Text(
           isRestaurantOrStore
-              ? t('أضف مطعم أو محل', 'Add restaurant or store')
+              ? category == storesCategory
+                    ? t('أضف محل تجاري', 'Add store')
+                    : t('أضف مطعم أو كافيه', 'Add restaurant or cafe')
               : t('أضف إعلان', 'Add ad'),
           style: const TextStyle(
             color: Colors.white,
@@ -297,17 +380,20 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   }
 
   Widget _categoryFeaturedAds(BuildContext context) {
+    if (hasSubtypeFilters && subCategoryFilter.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('ads')
-          .where('category', isEqualTo: category)
-          .where('status', isEqualTo: 'approved')
-          .snapshots(),
+      stream: _adsStream(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
         final featured = sortPaidAdsByPromotion(
-          snapshot.data!.docs,
+          snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _matchesFilters(data);
+          }),
         ).take(15).toList();
 
         if (featured.isEmpty) return const SizedBox.shrink();

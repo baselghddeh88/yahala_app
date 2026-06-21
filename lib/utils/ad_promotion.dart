@@ -8,15 +8,31 @@ const String vipAdPlacement = 'vip_slider';
 const String featuredHomeAdPlacement = 'featured';
 const String categoryTopAdPlacement = 'category_top';
 
+const List<int> adDurationOptionsDays = [7, 14, 30];
+
+bool isFreePromotionCategory(String category) {
+  return category == 'كوبون' || category == 'سؤال';
+}
+
+bool isHomeVipPlacement(Map<String, dynamic> data) {
+  final placement = data['adPlacement']?.toString() ?? '';
+  final paidType = data['paidAdType']?.toString().toLowerCase() ?? '';
+  final promotion = data['promotionTier']?.toString().toLowerCase() ?? '';
+
+  return placement == vipAdPlacement ||
+      paidType == 'home_vip' ||
+      promotion == 'home_vip';
+}
+
 int adPromotionTier(Map<String, dynamic> data) {
   final category = data['category']?.toString() ?? '';
-  if (category == 'كوبون' || category == 'سؤال') return 0;
+  if (isFreePromotionCategory(category)) return 0;
 
   final placement = data['adPlacement']?.toString() ?? '';
   final paidType = data['paidAdType']?.toString().toLowerCase() ?? '';
   final promotion = data['promotionTier']?.toString().toLowerCase() ?? '';
 
-  if (placement == vipAdPlacement || paidType == 'vip' || promotion == 'vip') {
+  if (isHomeVipPlacement(data)) {
     return 3;
   }
 
@@ -50,6 +66,15 @@ bool isCategoryTopAd(Map<String, dynamic> data) => adPromotionTier(data) == 1;
 
 bool isPaidPlacementAd(Map<String, dynamic> data) => adPromotionTier(data) > 0;
 
+bool isAdActiveForDisplay(Map<String, dynamic> data) {
+  final activeUntil = data['activeUntil'];
+  if (activeUntil is Timestamp) {
+    return activeUntil.toDate().isAfter(DateTime.now());
+  }
+  if (activeUntil is DateTime) return activeUntil.isAfter(DateTime.now());
+  return true;
+}
+
 DateTime adSortDate(Map<String, dynamic> data) {
   for (final key in ['approvedAt', 'updatedAt', 'createdAt']) {
     final value = data[key];
@@ -82,6 +107,7 @@ List<QueryDocumentSnapshot<Object?>> sortAdsByPromotion(
 
   for (final doc in docs) {
     final data = doc.data() as Map<String, dynamic>;
+    if (!isAdActiveForDisplay(data)) continue;
     final tier = adPromotionTier(data);
     if (tier >= 3) {
       vip.add(doc);

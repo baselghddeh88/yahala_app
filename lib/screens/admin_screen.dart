@@ -10,6 +10,7 @@ import 'ad_details_screen.dart';
 import 'add_post_screen.dart';
 import 'question_details_screen.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -456,7 +457,7 @@ class _AdminScreenState extends State<AdminScreen>
 
     return switch (filter) {
       _ReviewFilter.vip =>
-        placement == vipAdPlacement || paidType == 'vip' || tier >= 3,
+        placement == vipAdPlacement || paidType == 'home_vip' || tier >= 3,
       _ReviewFilter.featured =>
         placement == featuredHomeAdPlacement ||
             paidType == 'featured' ||
@@ -1150,10 +1151,16 @@ class _AdminScreenState extends State<AdminScreen>
   }
 
   int _defaultDurationDays(int priorityTier) {
-    if (priorityTier >= 3) return 30;
-    if (priorityTier == 2) return 30;
-    if (priorityTier == 1) return 30;
-    return 0;
+    return 30;
+  }
+
+  int _durationDaysFromData(Map<String, dynamic> data, int priorityTier) {
+    final value = data['requestedDurationDays'] ?? data['adDurationDays'];
+    if (value is int && adDurationOptionsDays.contains(value)) return value;
+    if (value is num && adDurationOptionsDays.contains(value.toInt())) {
+      return value.toInt();
+    }
+    return _defaultDurationDays(priorityTier);
   }
 
   String _placementForTier(int priorityTier) {
@@ -1238,7 +1245,7 @@ class _AdminScreenState extends State<AdminScreen>
     final data = doc.data() ?? {};
     final priorityTier = adPromotionTier(data);
     final shouldFeature = priorityTier > 0;
-    final durationDays = _defaultDurationDays(priorityTier);
+    final durationDays = _durationDaysFromData(data, priorityTier);
     final approvedPlacement = _placementForTier(priorityTier);
 
     await FirebaseFirestore.instance.collection('ads').doc(id).update({
@@ -1810,8 +1817,12 @@ class _AdminScreenState extends State<AdminScreen>
                           child: Text('سؤال للجالية'),
                         ),
                         DropdownMenuItem(
-                          value: 'مطاعم ومحلات',
-                          child: Text('مطاعم ومحلات'),
+                          value: restaurantCategory,
+                          child: Text('مطاعم وكافيهات'),
+                        ),
+                        DropdownMenuItem(
+                          value: storesCategory,
+                          child: Text('محلات تجارية'),
                         ),
                         DropdownMenuItem(
                           value: 'فعاليات',
