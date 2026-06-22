@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'ad_details_screen.dart';
+import 'question_details_screen.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color bgDark = Color(0xFF0e1621);
@@ -184,12 +185,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => AdDetailsScreen(
-              isArabic: widget.isArabic,
-              isDark: widget.isDark,
-              data: data,
-              adId: adId,
-            ),
+            builder: (_) => category == 'سؤال'
+                ? QuestionDetailsScreen(
+                    isArabic: widget.isArabic,
+                    isDark: widget.isDark,
+                    questionId: adId,
+                    data: data,
+                  )
+                : AdDetailsScreen(
+                    isArabic: widget.isArabic,
+                    isDark: widget.isDark,
+                    data: data,
+                    adId: adId,
+                  ),
           ),
         );
       },

@@ -92,6 +92,9 @@ class _JobsScreenState extends State<JobsScreen> {
               _searchBox(context, t('ابحث عن وظيفة...', 'Search jobs...')),
 
               const SizedBox(height: 16),
+              _filterPanel(t('فلتر الوظائف', 'Jobs filter')),
+
+              const SizedBox(height: 16),
 
               SizedBox(
                 width: double.infinity,
@@ -133,9 +136,6 @@ class _JobsScreenState extends State<JobsScreen> {
                 category: 'وظيفة',
                 icon: Icons.work,
               ),
-
-              const SizedBox(height: 22),
-              _filterPanel(t('فلتر الوظائف', 'Jobs filter')),
 
               const SizedBox(height: 22),
 

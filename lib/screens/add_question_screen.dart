@@ -80,14 +80,16 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
         'description': '',
         'phone': phone,
         'category': 'سؤال',
-        'status': 'approved',
+        'status': 'pending',
         'allowCall': allowCall,
         'allowSms': allowSms,
         'allowInAppMessage': allowInAppMessage,
         'commentsEnabled': commentsEnabled,
         'views': 0,
+        'favoritesCount': 0,
         'likesCount': 0,
         'commentsCount': 0,
+        'isFeatured': false,
         'anonymous': anonymous,
         'authorName': anonymous
             ? ''
@@ -102,7 +104,11 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('تم نشر السؤال', 'Question posted'))),
+        SnackBar(
+          content: Text(
+            t('تم إرسال السؤال للمراجعة', 'Question submitted for review'),
+          ),
+        ),
       );
       Navigator.pop(context);
     } catch (_) {

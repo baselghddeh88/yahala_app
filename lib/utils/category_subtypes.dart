@@ -106,9 +106,7 @@ const legalSubtypes = [
 List<CategorySubtypeOption> subtypesForCategory(String category) {
   return switch (category) {
     'خدمة' => serviceSubtypes,
-    restaurantCategory => restaurantSubtypes,
     storesCategory => storeSubtypes,
-    legacyRestaurantStoreCategory => restaurantSubtypes,
     'محامين وهجرة' => legalSubtypes,
     _ => const [],
   };

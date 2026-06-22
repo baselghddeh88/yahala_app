@@ -1,4 +1,4 @@
-package com.example.yahala_app
+package com.yahala.app
 
 import io.flutter.embedding.android.FlutterActivity
 

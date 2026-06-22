@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/ad_actions.dart';
 import '../utils/value_formatters.dart';
@@ -9,7 +12,7 @@ const Color yaHalaGold = Color(0xFFc9952a);
 const Color bgDark = Color(0xFF0e1621);
 const Color cardColor = Color(0xFF1c2b3a);
 
-class DetailsScreen extends StatelessWidget {
+class DetailsScreen extends StatefulWidget {
   final bool isArabic;
   final bool isDark;
   final String title;
@@ -41,11 +44,49 @@ class DetailsScreen extends StatelessWidget {
     this.data = const {},
   });
 
+  @override
+  State<DetailsScreen> createState() => _DetailsScreenState();
+}
+
+class _DetailsScreenState extends State<DetailsScreen> {
+  bool get isArabic => widget.isArabic;
+  bool get isDark => widget.isDark;
+  String get adId => widget.adId;
+  Map<String, dynamic> get data => widget.data;
+
   String t(String ar, String en) => isArabic ? ar : en;
 
   @override
+  void initState() {
+    super.initState();
+    _recordViewOnce();
+  }
+
+  Future<void> _recordViewOnce() async {
+    if (adId.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && data['userId']?.toString() == user.uid) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final viewKey = 'viewed_ad_$adId';
+    if (prefs.getBool(viewKey) == true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('ads').doc(adId).update({
+        'views': FieldValue.increment(1),
+      });
+      await prefs.setBool(viewKey, true);
+    } catch (_) {
+      // View counts should not block reading the ad.
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final images = imageUrls.isNotEmpty ? imageUrls : [imageUrl];
+    final images = widget.imageUrls.isNotEmpty
+        ? widget.imageUrls
+        : [widget.imageUrl];
     final hasContactOptions =
         data.containsKey('allowCall') ||
         data.containsKey('allowSms') ||
@@ -53,8 +94,8 @@ class DetailsScreen extends StatelessWidget {
     final allowCall = hasContactOptions ? data['allowCall'] == true : true;
     final allowSms = hasContactOptions ? data['allowSms'] == true : true;
     final allowInAppMessage = data['allowInAppMessage'] == true;
-    final showCall = allowCall && phone.trim().isNotEmpty;
-    final showSms = allowSms && phone.trim().isNotEmpty;
+    final showCall = allowCall && widget.phone.trim().isNotEmpty;
+    final showSms = allowSms && widget.phone.trim().isNotEmpty;
     final address = data['address']?.toString() ?? '';
     final zipCode = data['zipCode']?.toString() ?? '';
 
@@ -101,7 +142,7 @@ class DetailsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          title,
+                          widget.title,
                           style: TextStyle(
                             color: isDark ? Colors.white : Colors.black,
                             fontSize: 26,
@@ -111,7 +152,7 @@ class DetailsScreen extends StatelessWidget {
                         const SizedBox(height: 8),
 
                         Text(
-                          subtitle,
+                          widget.subtitle,
                           style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 15,
@@ -135,9 +176,9 @@ class DetailsScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                price.isEmpty
+                                widget.price.isEmpty
                                     ? t('غير محدد', 'Not specified')
-                                    : formatMoney(price),
+                                    : formatMoney(widget.price),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -158,7 +199,7 @@ class DetailsScreen extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      city.isEmpty ? '-' : city,
+                                      widget.city.isEmpty ? '-' : widget.city,
                                       style: const TextStyle(
                                         color: Colors.grey,
                                       ),
@@ -208,20 +249,9 @@ class DetailsScreen extends StatelessWidget {
                               ],
                               const SizedBox(height: 10),
 
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.visibility,
-                                    color: Colors.grey,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    views,
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                ],
-                              ),
+                              _viewsCountRow(),
+                              const SizedBox(height: 10),
+                              _favoritesCountRow(),
                             ],
                           ),
                         ),
@@ -245,9 +275,9 @@ class DetailsScreen extends StatelessWidget {
                         const SizedBox(height: 10),
 
                         Text(
-                          description.isEmpty
+                          widget.description.isEmpty
                               ? t('لا يوجد وصف', 'No description')
-                              : description,
+                              : widget.description,
                           style: TextStyle(
                             color: isDark ? Colors.white70 : Colors.black87,
                             fontSize: 16,
@@ -271,7 +301,7 @@ class DetailsScreen extends StatelessWidget {
                                   ),
                                   onPressed: () => AdActions.callPhone(
                                     context,
-                                    phone,
+                                    widget.phone,
                                     isArabic: isArabic,
                                   ),
                                   icon: const Icon(
@@ -302,7 +332,7 @@ class DetailsScreen extends StatelessWidget {
                                   ),
                                   onPressed: () => AdActions.sendSms(
                                     context,
-                                    phone,
+                                    widget.phone,
                                     isArabic: isArabic,
                                   ),
                                   icon: const Icon(
@@ -384,6 +414,82 @@ class DetailsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _favoritesCountRow() {
+    if (adId.isEmpty) {
+      return _favoritesRow(data['favoritesCount']);
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('ads')
+          .doc(adId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final liveData = snapshot.data?.data();
+        return _favoritesRow(
+          liveData?['favoritesCount'] ?? data['favoritesCount'],
+        );
+      },
+    );
+  }
+
+  Widget _viewsCountRow() {
+    if (adId.isEmpty) {
+      return _viewsRow(data['views']);
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('ads')
+          .doc(adId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final liveData = snapshot.data?.data();
+        return _viewsRow(liveData?['views'] ?? data['views']);
+      },
+    );
+  }
+
+  Widget _viewsRow(dynamic views) {
+    return Row(
+      children: [
+        const Icon(Icons.visibility, color: Colors.grey, size: 18),
+        const SizedBox(width: 6),
+        Text(
+          _formattedViews(views),
+          style: const TextStyle(color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _favoritesRow(dynamic favoritesCount) {
+    return Row(
+      children: [
+        const Icon(Icons.favorite, color: Colors.redAccent, size: 18),
+        const SizedBox(width: 6),
+        Text(
+          isArabic
+              ? '${_intValue(favoritesCount)} بالمفضلة'
+              : '${_intValue(favoritesCount)} favorites',
+          style: const TextStyle(color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  String _formattedViews(dynamic liveViews) {
+    final count = _intValue(liveViews ?? widget.views);
+    return isArabic ? '$count مشاهدة' : '$count views';
+  }
+
+  int _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    final digits = '$value'.replaceAll(RegExp(r'[^0-9-]'), '');
+    return int.tryParse(digits) ?? 0;
   }
 }
 

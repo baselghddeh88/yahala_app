@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'constants.dart';
 import 'firebase_options.dart';
 import 'screens/admin_gate_screen.dart';
+import 'screens/legal_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/notification_service.dart';
 
@@ -19,7 +20,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(YahalaBootstrap(startInAdmin: _isAdminUrl()));
+  runApp(
+    YahalaBootstrap(
+      startInAdmin: _isAdminUrl(),
+      startLegalPath: _initialLegalPath(),
+    ),
+  );
 }
 
 Future<void> _initializeFirebase() async {
@@ -62,10 +68,53 @@ bool _isAdminUrl() {
       uri.fragment.startsWith('/admin');
 }
 
+String? _initialLegalPath() {
+  final uri = Uri.base;
+  final candidates = <String>[uri.path, uri.fragment];
+  for (final value in candidates) {
+    if (_isPrivacyRoute(value)) {
+      return '/privacy';
+    }
+    if (_isTermsRoute(value)) {
+      return '/terms';
+    }
+  }
+  return null;
+}
+
+bool _isPrivacyRoute(String value) {
+  final route = value.toLowerCase();
+  return route == '/privacy' ||
+      route.endsWith('/privacy') ||
+      route == '/privacy-policy' ||
+      route.endsWith('/privacy-policy');
+}
+
+bool _isTermsRoute(String value) {
+  final route = value.toLowerCase();
+  return route == '/terms' ||
+      route.endsWith('/terms') ||
+      route == '/terms-of-use' ||
+      route.endsWith('/terms-of-use');
+}
+
+Widget _legalScreenForPath(String path) {
+  return LegalScreen(
+    isArabic: false,
+    isDark: false,
+    initialTab: _isPrivacyRoute(path) ? 1 : 0,
+  );
+}
+
 class YahalaBootstrap extends StatefulWidget {
   final bool startInAdmin;
+  final String? startLegalPath;
 
-  const YahalaBootstrap({super.key, required this.startInAdmin});
+  const YahalaBootstrap({
+    super.key,
+    required this.startInAdmin,
+    this.startLegalPath,
+  });
 
   @override
   State<YahalaBootstrap> createState() => _YahalaBootstrapState();
@@ -87,7 +136,10 @@ class _YahalaBootstrapState extends State<YahalaBootstrap> {
           );
         }
 
-        return YahalaApp(startInAdmin: widget.startInAdmin);
+        return YahalaApp(
+          startInAdmin: widget.startInAdmin,
+          startLegalPath: widget.startLegalPath,
+        );
       },
     );
   }
@@ -154,8 +206,19 @@ class StartupSplashScreen extends StatelessWidget {
 
 class YahalaApp extends StatelessWidget {
   final bool startInAdmin;
+  final String? startLegalPath;
 
-  const YahalaApp({super.key, this.startInAdmin = false});
+  const YahalaApp({super.key, this.startInAdmin = false, this.startLegalPath});
+
+  Widget _initialHome() {
+    if (startInAdmin) {
+      return const AdminGateScreen();
+    }
+    if (startLegalPath != null) {
+      return _legalScreenForPath(startLegalPath!);
+    }
+    return const SplashScreen();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,10 +226,16 @@ class YahalaApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'يا هلا',
-      home: startInAdmin ? const AdminGateScreen() : const SplashScreen(),
+      home: _initialHome(),
       onGenerateRoute: (settings) {
-        if (settings.name == '/admin') {
+        final routeName = settings.name ?? '';
+        if (routeName == '/admin') {
           return MaterialPageRoute(builder: (_) => const AdminGateScreen());
+        }
+        if (_isPrivacyRoute(routeName) || _isTermsRoute(routeName)) {
+          return MaterialPageRoute(
+            builder: (_) => _legalScreenForPath(routeName),
+          );
         }
         return MaterialPageRoute(builder: (_) => const SplashScreen());
       },

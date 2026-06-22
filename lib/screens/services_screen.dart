@@ -20,11 +20,17 @@ const Color cardColor = Color(0xFF1c2b3a);
 class ServicesScreen extends StatefulWidget {
   final bool isArabic;
   final bool isDark;
+  final String? initialSubCategory;
+  final String? initialTitleAr;
+  final String? initialTitleEn;
 
   const ServicesScreen({
     super.key,
     required this.isArabic,
     required this.isDark,
+    this.initialSubCategory,
+    this.initialTitleAr,
+    this.initialTitleEn,
   });
 
   @override
@@ -45,7 +51,18 @@ class _ServicesScreenState extends State<ServicesScreen> {
   String subCategoryFilter = '';
 
   String t(String ar, String en) => isArabic ? ar : en;
+  bool get isSubCategoryPage => widget.initialSubCategory != null;
   bool get hasSubtypeFilters => serviceSubtypes.isNotEmpty;
+  String get pageTitle => t(
+    widget.initialTitleAr ?? 'الخدمات',
+    widget.initialTitleEn ?? 'Services',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    subCategoryFilter = widget.initialSubCategory ?? '';
+  }
 
   @override
   void dispose() {
@@ -99,7 +116,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
           backgroundColor: yaHalaGreen,
           centerTitle: true,
           title: Text(
-            t('الخدمات', 'Services'),
+            pageTitle,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
@@ -113,9 +130,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
             children: [
               _searchBox(context, t('ابحث عن خدمة...', 'Search services...')),
               const SizedBox(height: 16),
-              _serviceDirectory(),
-              const SizedBox(height: 16),
+              _filterPanel(t('فلتر الخدمات', 'Services filter')),
 
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -134,6 +151,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                           isArabic: isArabic,
                           isDark: isDark,
                           initialCategory: 'خدمة',
+                          initialSubCategory: subCategoryFilter.isEmpty
+                              ? null
+                              : subCategoryFilter,
                         ),
                       ),
                     );
@@ -150,6 +170,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
               ),
 
               const SizedBox(height: 22),
+              if (!isSubCategoryPage) ...[
+                _serviceDirectory(),
+                const SizedBox(height: 22),
+              ],
               PaidCategoryAds(
                 isArabic: isArabic,
                 isDark: isDark,
@@ -159,10 +183,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
               ),
 
               const SizedBox(height: 22),
-              _filterPanel(t('فلتر الخدمات', 'Services filter')),
-
-              const SizedBox(height: 22),
-              _sectionTitle(t('آخر الخدمات', 'Latest Services')),
+              _sectionTitle(
+                isSubCategoryPage
+                    ? t('آخر $pageTitle', 'Latest $pageTitle')
+                    : t('آخر الخدمات', 'Latest Services'),
+              ),
               const SizedBox(height: 12),
 
               StreamBuilder<QuerySnapshot>(
@@ -332,30 +357,34 @@ class _ServicesScreenState extends State<ServicesScreen> {
             crossAxisCount: 3,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            childAspectRatio: 1.05,
+            childAspectRatio: 0.92,
           ),
           itemBuilder: (context, index) {
             final option = serviceSubtypes[index];
-            final selected = subCategoryFilter == option.value;
             return InkWell(
               borderRadius: BorderRadius.circular(18),
               onTap: () {
-                setState(() {
-                  subCategoryFilter = selected ? '' : option.value;
-                });
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ServicesScreen(
+                      isArabic: isArabic,
+                      isDark: isDark,
+                      initialSubCategory: option.value,
+                      initialTitleAr: option.ar,
+                      initialTitleEn: option.en,
+                    ),
+                  ),
+                );
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? yaHalaGreen
-                      : (isDark ? cardColor : const Color(0xFFF3F3F3)),
+                  color: isDark ? cardColor : const Color(0xFFF3F3F3),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: selected
-                        ? yaHalaGreen
-                        : Colors.black.withValues(alpha: 0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                   ),
                 ),
                 child: Column(
@@ -363,7 +392,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   children: [
                     Icon(
                       _serviceIcon(option.value),
-                      color: selected ? Colors.white : yaHalaGreen,
+                      color: yaHalaGreen,
                       size: 28,
                     ),
                     const SizedBox(height: 8),
@@ -373,31 +402,44 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: selected
-                            ? Colors.white
-                            : (isDark ? Colors.white : Colors.black),
+                        color: isDark ? Colors.white : Colors.black,
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    _serviceSubtypeCountBadge(option.value),
                   ],
                 ),
               ),
             );
           },
         ),
-        if (subCategoryFilter.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: () => setState(() => subCategoryFilter = ''),
-              icon: const Icon(Icons.close, size: 18),
-              label: Text(t('عرض كل الخدمات', 'Show all services')),
-            ),
-          ),
-        ],
       ],
+    );
+  }
+
+  Widget _serviceSubtypeCountBadge(String subtype) {
+    final stream = FirebaseFirestore.instance
+        .collection('ads')
+        .where('status', isEqualTo: 'approved')
+        .where('category', isEqualTo: 'خدمة')
+        .where('subCategory', isEqualTo: subtype)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final count = snapshot.data?.docs.length ?? 0;
+        return Text(
+          isArabic ? '$count خدمة' : '$count services',
+          style: TextStyle(
+            color: isDark ? Colors.white54 : Colors.grey.shade600,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+      },
     );
   }
 
@@ -432,8 +474,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
               setState(() => query = value.trim().toLowerCase());
             },
           ),
-          _subCategoryDropdown(),
-          const SizedBox(height: 10),
+          if (!isSubCategoryPage) ...[
+            _subCategoryDropdown(),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(

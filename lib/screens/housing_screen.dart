@@ -97,6 +97,9 @@ class _HousingScreenState extends State<HousingScreen> {
               _searchBox(context, t('ابحث عن سكن...', 'Search housing...')),
 
               const SizedBox(height: 16),
+              _filterPanel(t('فلتر السكن', 'Housing filter')),
+
+              const SizedBox(height: 16),
 
               SizedBox(
                 width: double.infinity,
@@ -138,9 +141,6 @@ class _HousingScreenState extends State<HousingScreen> {
                 category: 'سكن',
                 icon: Icons.home,
               ),
-
-              const SizedBox(height: 22),
-              _filterPanel(t('فلتر السكن', 'Housing filter')),
 
               const SizedBox(height: 22),
 

@@ -7,12 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:946030358554:android:81d0661552f41b9d0de1a3",
+        "mobilesdk_app_id": "1:946030358554:android:2cb8d130625a22c80de1a3",
         "android_client_info": {
-          "package_name": "com.example.yahala_app"
+          "package_name": "com.yahala.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "946030358554-lk7fdc2fqe5cfcmm1v6iks8hp0ufjomc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yahala.app",
+            "certificate_hash": "7ba3379a56c492855b82ba659ba60cbf9699077b"
+          }
+        },
+        {
+          "client_id": "946030358554-c8aavr4b78dt6vfphfjj58ps5gorucmo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBQ1bWrQist8itSNlj6DeLqNSJ6UD6ni9E"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "946030358554-c8aavr4b78dt6vfphfjj58ps5gorucmo.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "946030358554-7nf89t61792ravggk289v1dmn1ujcsjs.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.yahala.app"
+              }
+            }
+          ]
         }
       }
     }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'add_question_screen.dart';
 import 'question_details_screen.dart';
 import '../utils/ad_promotion.dart';
+import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -171,13 +172,28 @@ class CommunityScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                FavoriteButton(
+                  adId: questionId,
+                  data: data,
+                  isArabic: isArabic,
+                  savedColor: Colors.redAccent,
+                  unsavedColor: isDark ? Colors.white70 : yaHalaGreen,
+                  iconSize: 24,
+                ),
+              ],
             ),
             if (description.isNotEmpty) ...[
               const SizedBox(height: 8),

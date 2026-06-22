@@ -7,6 +7,7 @@ import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
+import '../widgets/promoted_ad_frame.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -20,6 +21,9 @@ class CategoryAdsScreen extends StatefulWidget {
   final String titleAr;
   final String titleEn;
   final IconData icon;
+  final String? initialSubCategory;
+  final String? initialSubCategoryTitleAr;
+  final String? initialSubCategoryTitleEn;
 
   const CategoryAdsScreen({
     super.key,
@@ -29,6 +33,9 @@ class CategoryAdsScreen extends StatefulWidget {
     required this.titleAr,
     required this.titleEn,
     required this.icon,
+    this.initialSubCategory,
+    this.initialSubCategoryTitleAr,
+    this.initialSubCategoryTitleEn,
   });
 
   @override
@@ -45,6 +52,8 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   String get category => widget.category;
   String get titleAr => widget.titleAr;
   String get titleEn => widget.titleEn;
+  String get pageTitleAr => widget.initialSubCategoryTitleAr ?? titleAr;
+  String get pageTitleEn => widget.initialSubCategoryTitleEn ?? titleEn;
   IconData get icon => widget.icon;
 
   String query = '';
@@ -54,7 +63,10 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
 
   String t(String ar, String en) => isArabic ? ar : en;
   bool get isRestaurantOrStore => isRestaurantOrStoreCategory(category);
-  bool get hasSubtypeFilters => subtypesForCategory(category).isNotEmpty;
+  bool get isSubCategoryPage => widget.initialSubCategory != null;
+  bool get hasSubtypeFilters =>
+      category != restaurantCategory &&
+      subtypesForCategory(category).isNotEmpty;
   List<String> get categoryQueryValues => category == restaurantCategory
       ? [restaurantCategory, legacyRestaurantStoreCategory]
       : [category];
@@ -71,6 +83,12 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     }
 
     return query.snapshots();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    subCategoryFilter = widget.initialSubCategory ?? '';
   }
 
   @override
@@ -126,7 +144,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
           backgroundColor: yaHalaGreen,
           centerTitle: true,
           title: Text(
-            t(titleAr, titleEn),
+            t(pageTitleAr, pageTitleEn),
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
@@ -138,11 +156,15 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _filterPanel(),
+              const SizedBox(height: 22),
               _addButton(context),
               const SizedBox(height: 22),
+              if (hasSubtypeFilters && !isSubCategoryPage) ...[
+                _subtypeDirectory(),
+                const SizedBox(height: 22),
+              ],
               _categoryFeaturedAds(context),
-              const SizedBox(height: 22),
-              _filterPanel(),
               const SizedBox(height: 22),
               _sectionTitle(
                 isRestaurantOrStore
@@ -216,7 +238,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            t('فلتر $titleAr', '$titleEn filter'),
+            t('فلتر $pageTitleAr', '$pageTitleEn filter'),
             style: TextStyle(
               color: isDark ? Colors.white : Colors.black,
               fontWeight: FontWeight.w900,
@@ -231,7 +253,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
               setState(() => query = value.trim().toLowerCase());
             },
           ),
-          if (subtypesForCategory(category).isNotEmpty) ...[
+          if (hasSubtypeFilters && !isSubCategoryPage) ...[
             _subCategoryDropdown(),
             const SizedBox(height: 10),
           ],
@@ -292,6 +314,142 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
         ),
         onChanged: onChanged,
       ),
+    );
+  }
+
+  IconData _subtypeIcon(String value) {
+    return switch (value) {
+      'restaurant' => Icons.restaurant,
+      'cafe' => Icons.local_cafe,
+      'sweets' => Icons.cake,
+      'bakery' => Icons.bakery_dining,
+      'catering' => Icons.room_service,
+      'hookah' => Icons.nightlife,
+      'market' => Icons.storefront,
+      'phone_store' => Icons.phone_iphone,
+      'clothing' => Icons.checkroom,
+      'jewelry' => Icons.diamond,
+      'furniture' => Icons.chair,
+      'beauty_store' => Icons.spa,
+      'auto_parts' => Icons.car_repair,
+      'immigration' => Icons.flight_takeoff,
+      'accident' => Icons.health_and_safety,
+      'family' => Icons.family_restroom,
+      'business' => Icons.business_center,
+      'consultation' => Icons.record_voice_over,
+      'notary' => Icons.edit_document,
+      _ => icon,
+    };
+  }
+
+  Widget _subtypeDirectory() {
+    final options = subtypesForCategory(category);
+    if (!hasSubtypeFilters || options.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(t('الأقسام الفرعية', 'Subcategories')),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: options.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.92,
+          ),
+          itemBuilder: (context, index) {
+            final option = options[index];
+            return InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CategoryAdsScreen(
+                      isArabic: isArabic,
+                      isDark: isDark,
+                      category: category,
+                      titleAr: titleAr,
+                      titleEn: titleEn,
+                      icon: _subtypeIcon(option.value),
+                      initialSubCategory: option.value,
+                      initialSubCategoryTitleAr: option.ar,
+                      initialSubCategoryTitleEn: option.en,
+                    ),
+                  ),
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark ? cardColor : const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _subtypeIcon(option.value),
+                      color: yaHalaGreen,
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isArabic ? option.ar : option.en,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _subtypeCountBadge(option.value),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _subtypeCountBadge(String subtype) {
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection('ads')
+        .where('status', isEqualTo: 'approved')
+        .where('subCategory', isEqualTo: subtype);
+
+    if (categoryQueryValues.length == 1) {
+      query = query.where('category', isEqualTo: category);
+    } else {
+      query = query.where('category', whereIn: categoryQueryValues);
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.docs.length ?? 0;
+        return Text(
+          isArabic ? '$count إعلان' : '$count ads',
+          style: TextStyle(
+            color: isDark ? Colors.white54 : Colors.grey.shade600,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+      },
     );
   }
 
@@ -359,6 +517,9 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                 isArabic: isArabic,
                 isDark: isDark,
                 initialCategory: category,
+                initialSubCategory: subCategoryFilter.isEmpty
+                    ? null
+                    : subCategoryFilter,
               ),
             ),
           );
@@ -394,146 +555,24 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
             final data = doc.data() as Map<String, dynamic>;
             return _matchesFilters(data);
           }),
-        ).take(15).toList();
+        ).take(categoryTopAdSlots).toList();
 
         if (featured.isEmpty) return const SizedBox.shrink();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle(t('مميز في هذا القسم', 'Featured in this section')),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 170,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: featured.length,
-                itemBuilder: (context, index) {
-                  final doc = featured[index];
-                  final data = doc.data() as Map<String, dynamic>;
-                  return SizedBox(
-                    width: 260,
-                    child: _featuredCard(context, doc.id, data),
-                  );
-                },
-              ),
+            _sectionTitle(t('أولوية الظهور', 'Priority listings')),
+            const SizedBox(height: 10),
+            Column(
+              children: featured.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return _adCard(context, doc.id, data, promoted: true);
+              }).toList(),
             ),
           ],
         );
       },
-    );
-  }
-
-  Widget _featuredCard(
-    BuildContext context,
-    String adId,
-    Map<String, dynamic> data,
-  ) {
-    final title = data['title']?.toString() ?? '';
-    final city = data['city']?.toString() ?? data['address']?.toString() ?? '';
-    final imageUrl = data['imageUrl']?.toString() ?? '';
-    final vip = isVipAd(data);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AdDetailsScreen(
-              isArabic: isArabic,
-              isDark: isDark,
-              data: data,
-              adId: adId,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsetsDirectional.only(end: 12),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: isDark ? cardColor : const Color(0xFFF3F3F3),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: yaHalaGold.withValues(alpha: 0.35)),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            imageUrl.isEmpty
-                ? Icon(icon, color: Colors.grey, size: 44)
-                : Image.network(imageUrl, fit: BoxFit.cover),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.7),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
-            ),
-            PositionedDirectional(
-              top: 10,
-              start: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: vip ? yaHalaGreen : yaHalaGold,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Text(
-                  vip ? t('VIP', 'VIP') : t('مميز', 'Featured'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-            PositionedDirectional(
-              start: 14,
-              end: 14,
-              bottom: 14,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title.isEmpty ? t('إعلان مميز', 'Featured ad') : title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                    ),
-                  ),
-                  if (city.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      city,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -548,7 +587,12 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     );
   }
 
-  Widget _adCard(BuildContext context, String adId, Map<String, dynamic> data) {
+  Widget _adCard(
+    BuildContext context,
+    String adId,
+    Map<String, dynamic> data, {
+    bool promoted = false,
+  }) {
     final title = data['title']?.toString() ?? '';
     final description = data['description']?.toString() ?? '';
     final city = data['city']?.toString() ?? '';
@@ -558,7 +602,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     final imageUrl = data['imageUrl']?.toString() ?? '';
     final trailingInfo = eventDate.isNotEmpty ? eventDate : price;
 
-    return InkWell(
+    final card = InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () {
         Navigator.push(
@@ -574,7 +618,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: promoted ? EdgeInsets.zero : const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isDark ? cardColor : const Color(0xFFF3F3F3),
@@ -664,6 +708,15 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
           ],
         ),
       ),
+    );
+
+    if (!promoted) return card;
+
+    return PromotedAdFrame(
+      isDark: isDark,
+      margin: const EdgeInsets.only(bottom: 12),
+      borderRadius: BorderRadius.circular(20),
+      child: card,
     );
   }
 

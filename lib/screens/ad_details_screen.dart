@@ -49,7 +49,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     if (adId.isEmpty) return;
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || data['userId']?.toString() == user.uid) return;
+    if (user != null && data['userId']?.toString() == user.uid) return;
 
     final prefs = await SharedPreferences.getInstance();
     final viewKey = 'viewed_ad_$adId';
@@ -147,6 +147,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   if (price.isNotEmpty) _chip(price, gold: true),
                 ],
               ),
+
+              const SizedBox(height: 16),
+              _engagementStats(),
 
               const SizedBox(height: 22),
 
@@ -313,6 +316,100 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _engagementStats() {
+    if (adId.isEmpty) {
+      return _statsRow(
+        views: data['views'],
+        favoritesCount: data['favoritesCount'],
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('ads')
+          .doc(adId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final liveData = snapshot.data?.data();
+        return _statsRow(
+          views: liveData?['views'] ?? data['views'],
+          favoritesCount: liveData?['favoritesCount'] ?? data['favoritesCount'],
+        );
+      },
+    );
+  }
+
+  Widget _statsRow({dynamic views, dynamic favoritesCount}) {
+    return Row(
+      children: [
+        Expanded(
+          child: _statTile(
+            Icons.visibility,
+            t('المشاهدات', 'Views'),
+            '${_intValue(views)}',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _statTile(
+            Icons.favorite,
+            t('المفضلة', 'Favorites'),
+            '${_intValue(favoritesCount)}',
+            color: Colors.redAccent,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statTile(
+    IconData icon,
+    String label,
+    String value, {
+    Color color = yaHalaGreen,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
   }
 
   Widget _chip(String text, {bool gold = false}) {

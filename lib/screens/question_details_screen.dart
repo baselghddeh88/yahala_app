@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/ad_actions.dart';
+import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -142,6 +143,15 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
+          actions: [
+            FavoriteButton(
+              adId: widget.questionId,
+              data: widget.data,
+              isArabic: widget.isArabic,
+              savedColor: Colors.redAccent,
+              unsavedColor: Colors.white,
+            ),
+          ],
         ),
         body: Column(
           children: [

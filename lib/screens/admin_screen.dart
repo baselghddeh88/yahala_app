@@ -939,6 +939,7 @@ class _AdminScreenState extends State<AdminScreen>
     final isFeatured = data['isFeatured'] == true;
     final userEmail = data['userEmail']?.toString() ?? '';
     final views = data['views']?.toString() ?? '0';
+    final favoritesCount = data['favoritesCount']?.toString() ?? '0';
     final placement = data['adPlacement']?.toString() ?? '';
     final paidLabel = _paidReviewLabel(data);
     final paymentStatus = data['paymentStatus']?.toString() ?? '';
@@ -1008,6 +1009,7 @@ class _AdminScreenState extends State<AdminScreen>
                   '${t('ينتهي', 'Ends')}: ${_formatDate(activeUntil.toDate())}',
                 ),
               _meta(Icons.visibility, views),
+              _meta(Icons.favorite, favoritesCount),
               if (isFeatured) _meta(Icons.star, t('مميز', 'Featured')),
             ],
           ),
@@ -2071,6 +2073,7 @@ class _AdminScreenState extends State<AdminScreen>
       'allowSms': allowSms,
       'allowInAppMessage': allowInAppMessage,
       'views': 0,
+      'favoritesCount': 0,
       'likesCount': 0,
       'commentsCount': 0,
       if (category == 'سؤال') 'commentsEnabled': commentsEnabled,

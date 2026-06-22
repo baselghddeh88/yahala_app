@@ -65,7 +65,10 @@ class AdActions {
     if (query.isEmpty) return;
 
     final launched = await launchUrl(
-      Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': query}),
+      Uri.https('www.google.com', '/maps/search/', {
+        'api': '1',
+        'query': query,
+      }),
       mode: LaunchMode.externalApplication,
     );
     if (!launched && context.mounted) {
@@ -100,17 +103,30 @@ class AdActions {
       return;
     }
 
+    final favoriteRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('favorites')
+        .doc(adId);
+    final adRef = FirebaseFirestore.instance.collection('ads').doc(adId);
+
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('favorites')
-          .doc(adId)
-          .set({
-            ...data,
-            'adId': adId,
-            'savedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final favoriteDoc = await transaction.get(favoriteRef);
+        if (favoriteDoc.exists) return;
+
+        final adDoc = await transaction.get(adRef);
+        final currentCount = _intValue(adDoc.data()?['favoritesCount']);
+
+        transaction.set(favoriteRef, {
+          ...data,
+          'adId': adId,
+          'savedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        transaction.set(adRef, {
+          'favoritesCount': currentCount + 1,
+        }, SetOptions(merge: true));
+      });
     } catch (_) {
       if (!context.mounted) return;
 
@@ -158,12 +174,36 @@ class AdActions {
         .doc(user.uid)
         .collection('favorites')
         .doc(adId);
+    final adRef = FirebaseFirestore.instance.collection('ads').doc(adId);
 
     try {
-      final favoriteDoc = await favoriteRef.get();
+      var wasRemoved = false;
 
-      if (favoriteDoc.exists) {
-        await favoriteRef.delete();
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final favoriteDoc = await transaction.get(favoriteRef);
+        final adDoc = await transaction.get(adRef);
+        final currentCount = _intValue(adDoc.data()?['favoritesCount']);
+
+        if (favoriteDoc.exists) {
+          wasRemoved = true;
+          transaction.delete(favoriteRef);
+          transaction.set(adRef, {
+            'favoritesCount': currentCount > 0 ? currentCount - 1 : 0,
+          }, SetOptions(merge: true));
+          return;
+        }
+
+        transaction.set(favoriteRef, {
+          ...data,
+          'adId': adId,
+          'savedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        transaction.set(adRef, {
+          'favoritesCount': currentCount + 1,
+        }, SetOptions(merge: true));
+      });
+
+      if (wasRemoved) {
         if (context.mounted) {
           _showMessage(
             context,
@@ -172,12 +212,6 @@ class AdActions {
         }
         return;
       }
-
-      await favoriteRef.set({
-        ...data,
-        'adId': adId,
-        'savedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
 
       if (context.mounted) {
         _showMessage(
@@ -193,6 +227,12 @@ class AdActions {
         isArabic ? 'تعذر تحديث المفضلة' : 'Could not update favorite',
       );
     }
+  }
+
+  static int _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
   }
 
   static Future<void> openInAppChat(

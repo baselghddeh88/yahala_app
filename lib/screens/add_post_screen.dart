@@ -12,6 +12,7 @@ import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
+import 'add_question_screen.dart' as community_question;
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -22,6 +23,7 @@ class AddPostScreen extends StatefulWidget {
   final bool isArabic;
   final bool isDark;
   final String? initialCategory;
+  final String? initialSubCategory;
   final String? initialAdPlacement;
   final bool publishImmediately;
   final bool createdByAdmin;
@@ -31,6 +33,7 @@ class AddPostScreen extends StatefulWidget {
     required this.isArabic,
     required this.isDark,
     this.initialCategory,
+    this.initialSubCategory,
     this.initialAdPlacement,
     this.publishImmediately = false,
     this.createdByAdmin = false,
@@ -109,7 +112,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
     adPlacement = widget.initialAdPlacement;
     selectedCategory =
         widget.initialCategory ??
-        (isPaidAdRequest ? restaurantCategory : 'وظيفة');
+        (widget.initialAdPlacement != null ? restaurantCategory : 'وظيفة');
+    selectedSubtype = widget.initialSubCategory;
   }
 
   @override
@@ -315,6 +319,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'allowSms': allowSms,
         'allowInAppMessage': allowInAppMessage,
         'views': 0,
+        'favoritesCount': 0,
         'likesCount': 0,
         'commentsCount': 0,
         'status': widget.publishImmediately ? 'approved' : 'pending',
@@ -457,6 +462,19 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   void changeCategory(String value) {
+    if (value == 'سؤال') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => community_question.AddQuestionScreen(
+            isArabic: widget.isArabic,
+            isDark: widget.isDark,
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       selectedCategory = value;
       selectedImages.clear();
@@ -616,10 +634,16 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                 ),
                 _input(
-                  t('العنوان الكامل - اختياري', 'Full address - optional'),
+                  t(
+                    'أضف العنوان الكامل - اختياري',
+                    'Add full address - optional',
+                  ),
                   addressController,
                   textDirection: TextDirection.ltr,
                   textAlign: TextAlign.left,
+                  suffixIcon: Icons.add_location_alt,
+                  accentColor: yaHalaGold,
+                  highlighted: true,
                 ),
                 _input(
                   t('ZIP Code - اختياري', 'ZIP Code - optional'),
@@ -1730,7 +1754,22 @@ class _AddPostScreenState extends State<AddPostScreen> {
     List<TextInputFormatter>? inputFormatters,
     TextDirection? textDirection,
     TextAlign? textAlign,
+    IconData? suffixIcon,
+    Color? accentColor,
+    bool highlighted = false,
   }) {
+    final activeAccent = accentColor ?? yaHalaGold;
+    final radius = BorderRadius.circular(16);
+    final enabledBorder = OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(
+        color: highlighted
+            ? activeAccent.withValues(alpha: widget.isDark ? 0.85 : 0.58)
+            : Colors.transparent,
+        width: highlighted ? 1.6 : 0,
+      ),
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -1754,12 +1793,29 @@ class _AddPostScreenState extends State<AddPostScreen> {
             color: yaHalaGold,
             fontWeight: FontWeight.w900,
           ),
-          hintStyle: const TextStyle(color: Colors.grey),
+          suffixIcon: suffixIcon == null
+              ? null
+              : Icon(suffixIcon, color: activeAccent),
+          hintStyle: TextStyle(
+            color: highlighted
+                ? activeAccent.withValues(alpha: widget.isDark ? 0.95 : 0.85)
+                : Colors.grey,
+            fontWeight: highlighted ? FontWeight.w800 : FontWeight.normal,
+          ),
           filled: true,
-          fillColor: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+          fillColor: highlighted
+              ? activeAccent.withValues(alpha: widget.isDark ? 0.12 : 0.08)
+              : widget.isDark
+              ? cardColor
+              : const Color(0xFFF3F3F3),
+          border: enabledBorder,
+          enabledBorder: enabledBorder,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(
+              color: highlighted ? activeAccent : yaHalaGreen,
+              width: highlighted ? 2 : 1.4,
+            ),
           ),
         ),
       ),
