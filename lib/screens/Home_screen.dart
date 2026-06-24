@@ -842,7 +842,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'icon': Icons.handyman,
         'label': t('خدمات', 'Services'),
         'color': yaHalaGreen,
-        'onTap': _showServicesSectionPicker,
+        'screen': ServicesScreen(isArabic: isArabic, isDark: isDark),
       },
       {
         'icon': Icons.local_offer,
@@ -901,12 +901,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return GestureDetector(
           onTap: () {
-            final onTap = cat['onTap'];
-            if (onTap is VoidCallback) {
-              onTap();
-              return;
-            }
-
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => cat['screen'] as Widget),
@@ -966,166 +960,6 @@ class _HomeScreenState extends State<HomeScreen> {
         titleEn: labelEn,
         icon: icon,
       ),
-    };
-  }
-
-  Future<void> _showServicesSectionPicker() async {
-    final options = [...serviceSubtypes, ...dynamicHomeServiceSubtypes];
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: isDark ? cardColor : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetContext) {
-        return Directionality(
-          textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          t('أي قسم خدمة؟', 'Which service section?'),
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          _serviceSectionChoice(
-                            icon: Icons.apps,
-                            label: t('كل الخدمات', 'All services'),
-                            onTap: () {
-                              Navigator.pop(sheetContext);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ServicesScreen(
-                                    isArabic: isArabic,
-                                    isDark: isDark,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          ...options.map(
-                            (option) => _serviceSectionChoice(
-                              icon: _serviceSectionIcon(option.value),
-                              label: isArabic ? option.ar : option.en,
-                              onTap: () {
-                                Navigator.pop(sheetContext);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ServicesScreen(
-                                      isArabic: isArabic,
-                                      isDark: isDark,
-                                      initialSubCategory: option.value,
-                                      initialTitleAr: option.ar,
-                                      initialTitleEn: option.en,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _serviceSectionChoice({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        width: 104,
-        height: 94,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? bgDark : const Color(0xFFF3F3F3),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.06),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: yaHalaGreen, size: 26),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _serviceSectionIcon(String value) {
-    return switch (value) {
-      'plumbing' => Icons.plumbing,
-      'electrician' => Icons.electrical_services,
-      'carpenter' => Icons.handyman,
-      'cleaning' => Icons.cleaning_services,
-      'painting' => Icons.format_paint,
-      'moving' => Icons.local_shipping,
-      'ac_repair' => Icons.ac_unit,
-      'camera_security' => Icons.videocam,
-      'taxes' => Icons.receipt_long,
-      'notary' => Icons.edit_document,
-      'translation' => Icons.translate,
-      'beauty' => Icons.spa,
-      'education' => Icons.school,
-      'catering_service' => Icons.room_service,
-      'government_services' => Icons.account_balance,
-      'insurance' => Icons.verified_user,
-      'tech_repair' => Icons.phone_iphone,
-      _ => Icons.miscellaneous_services,
     };
   }
 
