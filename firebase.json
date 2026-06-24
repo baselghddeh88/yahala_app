@@ -44,7 +44,7 @@
   "hosting": {
     "public": "build/web",
     "predeploy": [
-      "flutter build web --release --pwa-strategy=none",
+      "flutter build web --release --pwa-strategy none",
       "rm -f build/web/flutter_service_worker.js",
       "cp web/privacy.html build/web/privacy.html",
       "cp web/terms.html build/web/terms.html"
