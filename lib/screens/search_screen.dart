@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ad_details_screen.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
+import '../utils/service_category_suggestions.dart';
 import '../widgets/city_picker_field.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -26,6 +27,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   String query = '';
   String selectedCategory = '';
+  String selectedSubtype = '';
   String selectedCity = '';
 
   String t(String ar, String en) => widget.isArabic ? ar : en;
@@ -63,8 +65,12 @@ class _SearchScreenState extends State<SearchScreen> {
             category == legacyRestaurantStoreCategory);
 
     final cityMatches = selectedCity.isEmpty || city == selectedCity;
+    final subtypeMatches =
+        selectedSubtype.isEmpty ||
+        data['subCategory']?.toString() == selectedSubtype ||
+        subCategory.contains(selectedSubtype.toLowerCase());
 
-    return textMatches && categoryMatches && cityMatches;
+    return textMatches && categoryMatches && subtypeMatches && cityMatches;
   }
 
   @override
@@ -113,45 +119,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _filterDropdown(
-                      value: selectedCategory,
-                      hint: t('القسم', 'Category'),
-                      items: const [
-                        '',
-                        'وظيفة',
-                        'سكن',
-                        'خدمة',
-                        'كوبون',
-                        'سؤال',
-                        restaurantCategory,
-                        storesCategory,
-                        'فعاليات',
-                        'محامين وهجرة',
-                      ],
-                      onChanged: (value) {
-                        setState(() => selectedCategory = value ?? '');
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: CityPickerField(
-                      controller: cityController,
-                      isArabic: widget.isArabic,
-                      isDark: widget.isDark,
-                      hint: t('المدينة', 'City'),
-                      onSelected: (value) =>
-                          setState(() => selectedCity = value),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _searchFilters(),
 
             const SizedBox(height: 10),
 
@@ -184,6 +152,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
                   if (query.isEmpty &&
                       selectedCategory.isEmpty &&
+                      selectedSubtype.isEmpty &&
                       selectedCity.isEmpty) {
                     return Center(
                       child: Text(
@@ -337,5 +306,120 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
     );
+  }
+
+  Widget _searchFilters() {
+    return StreamBuilder<List<CategorySubtypeOption>>(
+      stream: approvedServiceCategoriesStream(widget.isArabic),
+      builder: (context, snapshot) {
+        final subtypeOptions = _subtypeOptions(snapshot.data ?? const []);
+        final selectedSubtypeValue =
+            subtypeOptions.any((option) => option.value == selectedSubtype)
+            ? selectedSubtype
+            : '';
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _filterDropdown(
+                      value: selectedCategory,
+                      hint: t('القسم', 'Category'),
+                      items: const [
+                        '',
+                        'وظيفة',
+                        'سكن',
+                        'خدمة',
+                        'كوبون',
+                        'سؤال',
+                        restaurantCategory,
+                        storesCategory,
+                        'فعاليات',
+                        'محامين وهجرة',
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedCategory = value ?? '';
+                          selectedSubtype = '';
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: CityPickerField(
+                      controller: cityController,
+                      isArabic: widget.isArabic,
+                      isDark: widget.isDark,
+                      hint: t('المدينة', 'City'),
+                      onSelected: (value) =>
+                          setState(() => selectedCity = value),
+                    ),
+                  ),
+                ],
+              ),
+              if (subtypeOptions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _subtypeDropdown(subtypeOptions, selectedSubtypeValue),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _subtypeDropdown(
+    List<CategorySubtypeOption> options,
+    String selectedValue,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedValue,
+          isExpanded: true,
+          dropdownColor: widget.isDark ? cardColor : Colors.white,
+          hint: Text(
+            t('التفريع', 'Subtype'),
+            style: const TextStyle(color: Colors.grey),
+          ),
+          items: [
+            DropdownMenuItem<String>(
+              value: '',
+              child: Text(t('كل التفريعات', 'All subtypes')),
+            ),
+            ...options.map(
+              (option) => DropdownMenuItem<String>(
+                value: option.value,
+                child: Text(widget.isArabic ? option.ar : option.en),
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => selectedSubtype = value ?? '');
+          },
+        ),
+      ),
+    );
+  }
+
+  List<CategorySubtypeOption> _subtypeOptions(
+    List<CategorySubtypeOption> dynamicServiceOptions,
+  ) {
+    return switch (selectedCategory) {
+      'خدمة' => [...serviceSubtypes, ...dynamicServiceOptions],
+      restaurantCategory => restaurantSubtypes,
+      storesCategory => storeSubtypes,
+      'محامين وهجرة' => legalSubtypes,
+      _ => const [],
+    };
   }
 }
