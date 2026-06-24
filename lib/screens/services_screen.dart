@@ -287,6 +287,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
               ),
 
               const SizedBox(height: 22),
+              if (!isSubCategoryPage) ...[
+                _serviceDirectory(),
+                const SizedBox(height: 22),
+              ],
               PaidCategoryAds(
                 isArabic: isArabic,
                 isDark: isDark,
@@ -414,6 +418,168 @@ class _ServicesScreenState extends State<ServicesScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  IconData _serviceIcon(String value) {
+    return switch (value) {
+      'plumbing' => Icons.plumbing,
+      'electrician' => Icons.electrical_services,
+      'carpenter' => Icons.handyman,
+      'cleaning' => Icons.cleaning_services,
+      'painting' => Icons.format_paint,
+      'moving' => Icons.local_shipping,
+      'ac_repair' => Icons.ac_unit,
+      'camera_security' => Icons.videocam,
+      'taxes' => Icons.receipt_long,
+      'notary' => Icons.edit_document,
+      'translation' => Icons.translate,
+      'beauty' => Icons.spa,
+      'education' => Icons.school,
+      'catering_service' => Icons.room_service,
+      'government_services' => Icons.account_balance,
+      'insurance' => Icons.verified_user,
+      'tech_repair' => Icons.phone_iphone,
+      _ => Icons.miscellaneous_services,
+    };
+  }
+
+  Widget _serviceDirectory() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(t('أقسام الخدمات', 'Service categories')),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: serviceSubtypes.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.92,
+          ),
+          itemBuilder: (context, index) {
+            final option = serviceSubtypes[index];
+            return InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ServicesScreen(
+                      isArabic: isArabic,
+                      isDark: isDark,
+                      initialSubCategory: option.value,
+                      initialTitleAr: option.ar,
+                      initialTitleEn: option.en,
+                    ),
+                  ),
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark ? cardColor : const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _serviceIcon(option.value),
+                      color: yaHalaGreen,
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isArabic ? option.ar : option.en,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _serviceSubtypeCountBadge(option.value),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _serviceSubtypeCountBadge(String subtype) {
+    final stream = FirebaseFirestore.instance
+        .collection('ads')
+        .where('status', isEqualTo: 'approved')
+        .where('category', isEqualTo: 'خدمة')
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        final count = docs.where((doc) {
+          final data = doc.data();
+          if (subtype == 'catering_service') {
+            return data['subCategory']?.toString() == subtype ||
+                _isCateringService(data);
+          }
+          if (subtype == 'government_services') {
+            return data['subCategory']?.toString() == subtype ||
+                _isGovernmentService(data);
+          }
+          if (subtype == 'insurance') {
+            return data['subCategory']?.toString() == subtype ||
+                _isInsuranceService(data);
+          }
+          if (subtype != 'other') {
+            return data['subCategory']?.toString() == subtype;
+          }
+
+          if (_isKnownServiceAlias(data)) return false;
+
+          final subCategory = data['subCategory']?.toString().trim() ?? '';
+          final labelAr = data['subCategoryLabelAr']?.toString().trim() ?? '';
+          final labelEn = data['subCategoryLabelEn']?.toString().trim() ?? '';
+          return subCategory.isEmpty ||
+              subCategory == 'other' ||
+              labelAr == 'خدمة أخرى' ||
+              labelEn.toLowerCase() == 'other service' ||
+              !serviceSubtypeValues.contains(subCategory);
+        }).length;
+        return Text(
+          isArabic ? '$count خدمة' : '$count services',
+          style: TextStyle(
+            color: isDark ? Colors.white54 : Colors.grey.shade600,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        color: isDark ? Colors.white : Colors.black,
+        fontWeight: FontWeight.w800,
+        fontSize: 18,
       ),
     );
   }

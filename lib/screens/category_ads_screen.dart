@@ -66,7 +66,6 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   bool get isSubCategoryPage => widget.initialSubCategory != null;
   bool get hasSubtypeFilters =>
       category != restaurantCategory &&
-      category != storesCategory &&
       subtypesForCategory(category).isNotEmpty;
   bool get keepsSubtypesWithPriority => category == 'محامين وهجرة';
   bool get hasActiveFilters =>
@@ -181,6 +180,10 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
               const SizedBox(height: 22),
               _addButton(context),
               const SizedBox(height: 22),
+              if (hasSubtypeFilters && !isSubCategoryPage) ...[
+                _subtypeDirectory(),
+                const SizedBox(height: 22),
+              ],
               _categoryFeaturedAds(context),
               const SizedBox(height: 22),
               StreamBuilder<QuerySnapshot>(
@@ -256,6 +259,136 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
       extraFilter: hasSubtypeFilters && !isSubCategoryPage
           ? _subCategoryDropdown()
           : null,
+    );
+  }
+
+  IconData _subtypeIcon(String value) {
+    return switch (value) {
+      'market' => Icons.storefront,
+      'phone_store' => Icons.phone_iphone,
+      'clothing' => Icons.checkroom,
+      'jewelry' => Icons.diamond,
+      'furniture' => Icons.chair,
+      'beauty_store' => Icons.spa,
+      'auto_parts' => Icons.car_repair,
+      'immigration' => Icons.flight_takeoff,
+      'accident' => Icons.health_and_safety,
+      'family' => Icons.family_restroom,
+      'business' => Icons.business_center,
+      'consultation' => Icons.record_voice_over,
+      'notary' => Icons.edit_document,
+      _ => icon,
+    };
+  }
+
+  Widget _subtypeDirectory() {
+    final options = subtypesForCategory(category);
+    if (!hasSubtypeFilters || options.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(t('الأقسام الفرعية', 'Subcategories')),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: options.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.92,
+          ),
+          itemBuilder: (context, index) {
+            final option = options[index];
+            return InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CategoryAdsScreen(
+                      isArabic: isArabic,
+                      isDark: isDark,
+                      category: category,
+                      titleAr: titleAr,
+                      titleEn: titleEn,
+                      icon: _subtypeIcon(option.value),
+                      initialSubCategory: option.value,
+                      initialSubCategoryTitleAr: option.ar,
+                      initialSubCategoryTitleEn: option.en,
+                    ),
+                  ),
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark ? cardColor : const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _subtypeIcon(option.value),
+                      color: yaHalaGreen,
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isArabic ? option.ar : option.en,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _subtypeCountBadge(option.value),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _subtypeCountBadge(String subtype) {
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection('ads')
+        .where('status', isEqualTo: 'approved')
+        .where('subCategory', isEqualTo: subtype);
+
+    if (categoryQueryValues.length == 1) {
+      query = query.where('category', isEqualTo: category);
+    } else {
+      query = query.where('category', whereIn: categoryQueryValues);
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.docs.length ?? 0;
+        return Text(
+          isArabic ? '$count إعلان' : '$count ads',
+          style: TextStyle(
+            color: isDark ? Colors.white54 : Colors.grey.shade600,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+      },
     );
   }
 
