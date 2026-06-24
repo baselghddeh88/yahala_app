@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import '../services/ai_description_service.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
+import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 
@@ -56,6 +57,8 @@ class _EditAdScreenState extends State<EditAdScreen> {
   bool wantsRestaurantCoupon = false;
   String housingType = 'إيجار';
   String? selectedSubtype;
+  String? selectedSubtypeLabelAr;
+  String? selectedSubtypeLabelEn;
   String? couponType;
   int selectedDurationDays = 30;
   DateTime? couponEndDate;
@@ -107,6 +110,8 @@ class _EditAdScreenState extends State<EditAdScreen> {
     priceController.text = widget.data['price']?.toString() ?? '';
     housingType = widget.data['housingType']?.toString() ?? housingType;
     selectedSubtype = widget.data['subCategory']?.toString();
+    selectedSubtypeLabelAr = widget.data['subCategoryLabelAr']?.toString();
+    selectedSubtypeLabelEn = widget.data['subCategoryLabelEn']?.toString();
     promoteInCategory =
         widget.data['adPlacement']?.toString() == categoryTopAdPlacement ||
         widget.data['paidAdType']?.toString() == 'category_top';
@@ -295,11 +300,10 @@ class _EditAdScreenState extends State<EditAdScreen> {
 
       if (hasSubtypeOptions && hasSelectedSubtype) {
         updateData['subCategory'] = selectedSubtype;
-        updateData['subCategoryLabelAr'] = subtypeLabel(selectedSubtype!, true);
-        updateData['subCategoryLabelEn'] = subtypeLabel(
-          selectedSubtype!,
-          false,
-        );
+        updateData['subCategoryLabelAr'] =
+            selectedSubtypeLabelAr ?? subtypeLabel(selectedSubtype!, true);
+        updateData['subCategoryLabelEn'] =
+            selectedSubtypeLabelEn ?? subtypeLabel(selectedSubtype!, false);
       } else if (hasSubtypeOptions) {
         updateData['subCategory'] = FieldValue.delete();
         updateData['subCategoryLabelAr'] = FieldValue.delete();
@@ -1529,10 +1533,28 @@ class _EditAdScreenState extends State<EditAdScreen> {
     final options = subtypesForCategory(category);
     if (options.isEmpty) return const SizedBox.shrink();
 
+    if (category == 'خدمة') {
+      return StreamBuilder<List<CategorySubtypeOption>>(
+        stream: approvedServiceCategoriesStream(widget.isArabic),
+        builder: (context, snapshot) {
+          return _subtypeDropdown([...options, ...?snapshot.data]);
+        },
+      );
+    }
+
+    return _subtypeDropdown(options);
+  }
+
+  Widget _subtypeDropdown(List<CategorySubtypeOption> options) {
+    final selectedValue =
+        options.any((option) => option.value == selectedSubtype)
+        ? selectedSubtype
+        : null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: DropdownButtonFormField<String>(
-        initialValue: hasSelectedSubtype ? selectedSubtype : null,
+        initialValue: selectedValue,
         isExpanded: true,
         decoration: InputDecoration(
           filled: true,
@@ -1563,7 +1585,19 @@ class _EditAdScreenState extends State<EditAdScreen> {
         onChanged: isSaving
             ? null
             : (value) {
-                setState(() => selectedSubtype = value);
+                setState(() {
+                  selectedSubtype = value;
+                  final selectedOption = options.where(
+                    (option) => option.value == value,
+                  );
+                  if (selectedOption.isEmpty) {
+                    selectedSubtypeLabelAr = null;
+                    selectedSubtypeLabelEn = null;
+                  } else {
+                    selectedSubtypeLabelAr = selectedOption.first.ar;
+                    selectedSubtypeLabelEn = selectedOption.first.en;
+                  }
+                });
               },
       ),
     );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -7,6 +9,7 @@ import 'search_screen.dart';
 import '../services/ad_actions.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
+import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
@@ -42,6 +45,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
   final queryController = TextEditingController();
   final cityController = TextEditingController();
   final zipController = TextEditingController();
+  StreamSubscription<List<CategorySubtypeOption>>? dynamicSubtypesSubscription;
 
   bool get isArabic => widget.isArabic;
   bool get isDark => widget.isDark;
@@ -59,8 +63,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
       cityFilter.isNotEmpty ||
       zipFilter.isNotEmpty ||
       (!isSubCategoryPage && subCategoryFilter.isNotEmpty);
+  List<CategorySubtypeOption> dynamicServiceSubtypes = const [];
+  List<CategorySubtypeOption> get allServiceSubtypes => [
+    ...serviceSubtypes,
+    ...dynamicServiceSubtypes,
+  ];
   Set<String> get serviceSubtypeValues =>
-      serviceSubtypes.map((option) => option.value).toSet();
+      allServiceSubtypes.map((option) => option.value).toSet();
   String get pageTitle => t(
     widget.initialTitleAr ?? 'الخدمات',
     widget.initialTitleEn ?? 'Services',
@@ -70,10 +79,16 @@ class _ServicesScreenState extends State<ServicesScreen> {
   void initState() {
     super.initState();
     subCategoryFilter = widget.initialSubCategory ?? '';
+    dynamicSubtypesSubscription = approvedServiceCategoriesStream(isArabic)
+        .listen((options) {
+          if (!mounted) return;
+          setState(() => dynamicServiceSubtypes = options);
+        });
   }
 
   @override
   void dispose() {
+    dynamicSubtypesSubscription?.cancel();
     queryController.dispose();
     cityController.dispose();
     zipController.dispose();
@@ -115,9 +130,24 @@ class _ServicesScreenState extends State<ServicesScreen> {
     if (subCategoryFilter == 'insurance') {
       return subCategory == subCategoryFilter || _isInsuranceService(data);
     }
-    if (subCategoryFilter != 'other') return subCategory == subCategoryFilter;
+    if (subCategoryFilter != 'other') {
+      final dynamicOption = dynamicServiceSubtypes.where(
+        (option) => option.value == subCategoryFilter,
+      );
+      if (dynamicOption.isNotEmpty) {
+        return subCategory == subCategoryFilter ||
+            _serviceTextMatches(data, [
+              dynamicOption.first.ar,
+              dynamicOption.first.en,
+              subCategoryFilter,
+            ]);
+      }
+      return subCategory == subCategoryFilter;
+    }
 
-    if (_isKnownServiceAlias(data)) return false;
+    if (_isKnownServiceAlias(data) || _isApprovedDynamicService(data)) {
+      return false;
+    }
 
     final labelAr = data['subCategoryLabelAr']?.toString().trim() ?? '';
     final labelEn = data['subCategoryLabelEn']?.toString().trim() ?? '';
@@ -132,6 +162,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
     return _isCateringService(data) ||
         _isGovernmentService(data) ||
         _isInsuranceService(data);
+  }
+
+  bool _isApprovedDynamicService(Map<String, dynamic> data) {
+    return dynamicServiceSubtypes.any(
+      (option) =>
+          _serviceTextMatches(data, [option.value, option.ar, option.en]),
+    );
   }
 
   bool _isCateringService(Map<String, dynamic> data) {
@@ -454,7 +491,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: serviceSubtypes.length,
+          itemCount: allServiceSubtypes.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
             mainAxisSpacing: 10,
@@ -462,7 +499,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
             childAspectRatio: 0.92,
           ),
           itemBuilder: (context, index) {
-            final option = serviceSubtypes[index];
+            final option = allServiceSubtypes[index];
             return InkWell(
               borderRadius: BorderRadius.circular(18),
               onTap: () {
@@ -547,10 +584,23 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 _isInsuranceService(data);
           }
           if (subtype != 'other') {
+            final dynamicOption = dynamicServiceSubtypes.where(
+              (option) => option.value == subtype,
+            );
+            if (dynamicOption.isNotEmpty) {
+              return data['subCategory']?.toString() == subtype ||
+                  _serviceTextMatches(data, [
+                    dynamicOption.first.ar,
+                    dynamicOption.first.en,
+                    subtype,
+                  ]);
+            }
             return data['subCategory']?.toString() == subtype;
           }
 
-          if (_isKnownServiceAlias(data)) return false;
+          if (_isKnownServiceAlias(data) || _isApprovedDynamicService(data)) {
+            return false;
+          }
 
           final subCategory = data['subCategory']?.toString().trim() ?? '';
           final labelAr = data['subCategoryLabelAr']?.toString().trim() ?? '';
@@ -633,7 +683,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 style: TextStyle(color: isDark ? Colors.white : Colors.black),
               ),
             ),
-            ...serviceSubtypes.map(
+            ...allServiceSubtypes.map(
               (option) => DropdownMenuItem<String>(
                 value: option.value,
                 child: Text(

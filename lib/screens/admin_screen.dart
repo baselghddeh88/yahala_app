@@ -11,6 +11,7 @@ import 'add_post_screen.dart';
 import 'question_details_screen.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
+import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -39,7 +40,7 @@ class _AdminScreenState extends State<AdminScreen>
   @override
   void initState() {
     super.initState();
-    tabController = TabController(length: 11, vsync: this);
+    tabController = TabController(length: 12, vsync: this);
   }
 
   @override
@@ -104,6 +105,7 @@ class _AdminScreenState extends State<AdminScreen>
               Tab(text: t('منشور', 'Approved')),
               Tab(text: t('مرفوض', 'Rejected')),
               Tab(text: t('أسئلة', 'Questions')),
+              Tab(text: t('أقسام خدمات', 'Service Sections')),
               Tab(text: t('إدارة VIP', 'VIP Manager')),
               Tab(text: t('مستخدمين', 'Users')),
               Tab(text: t('أدمنز', 'Admins')),
@@ -124,6 +126,7 @@ class _AdminScreenState extends State<AdminScreen>
             _adsList(status: 'approved', excludeQuestions: true),
             _adsList(status: 'rejected'),
             _adsList(category: 'سؤال'),
+            _serviceCategorySuggestions(),
             _slidesManager(),
             _usersAnalytics(),
             _adminsList(),
@@ -469,6 +472,119 @@ class _AdminScreenState extends State<AdminScreen>
             tier == 1,
       _ReviewFilter.free => !isPaidPlacementAd(data),
     };
+  }
+
+  Widget _serviceCategorySuggestions() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('serviceCategorySuggestions')
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return _error(snapshot.error.toString());
+        if (!snapshot.hasData) return _loading();
+
+        final docs = snapshot.data!.docs.toList();
+        docs.sort((a, b) {
+          final aCount = a.data()['count'];
+          final bCount = b.data()['count'];
+          final left = aCount is num ? aCount.toInt() : 0;
+          final right = bCount is num ? bCount.toInt() : 0;
+          return right.compareTo(left);
+        });
+
+        if (docs.isEmpty) {
+          return _empty(
+            t(
+              'لا توجد أقسام خدمات بانتظار الموافقة',
+              'No service sections are waiting for approval',
+            ),
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            _sectionTitle(t('طلبات أقسام الخدمات', 'Service section requests')),
+            const SizedBox(height: 10),
+            ...docs.map(
+              (doc) => _serviceCategorySuggestionCard(doc.id, doc.data()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _serviceCategorySuggestionCard(String id, Map<String, dynamic> data) {
+    final label = data['label']?.toString() ?? id;
+    final count = data['count'];
+    final countText = count is num ? count.toInt().toString() : '0';
+    final lastAdId = data['lastAdId']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: widget.isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.category, color: yaHalaGreen),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: widget.isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              _meta(Icons.repeat, t('$countText مرات', '$countText repeats')),
+              _meta(Icons.key, id),
+              if (lastAdId.isNotEmpty) _meta(Icons.article, lastAdId),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionButton(
+                Icons.check,
+                t('اعتماد كقسم', 'Approve section'),
+                yaHalaGreen,
+                () => _approveServiceCategory(id, data),
+              ),
+              _actionButton(
+                Icons.close,
+                t('رفض', 'Reject'),
+                Colors.deepOrange,
+                () => _rejectServiceCategory(id),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _adminsList() {
@@ -1275,6 +1391,75 @@ class _AdminScreenState extends State<AdminScreen>
 
     if (!mounted) return;
     _snack(t('تمت الموافقة', 'Approved'));
+  }
+
+  Future<void> _approveServiceCategory(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    final rawLabel = data['label']?.toString() ?? id;
+    final label = cleanServiceCategoryLabel(rawLabel);
+    final value = normalizeServiceCategoryName(label);
+
+    if (value.isEmpty) {
+      _snack(t('اسم القسم غير صالح', 'Invalid section name'));
+      return;
+    }
+
+    if (isBuiltInServiceSubtype(value)) {
+      await FirebaseFirestore.instance
+          .collection('serviceCategorySuggestions')
+          .doc(id)
+          .update({
+            'status': 'approved',
+            'approvedAt': FieldValue.serverTimestamp(),
+          });
+      _snack(t('القسم موجود مسبقاً', 'Section already exists'));
+      return;
+    }
+
+    final batch = FirebaseFirestore.instance.batch();
+    final categoryRef = FirebaseFirestore.instance
+        .collection('serviceCategories')
+        .doc(value);
+    final suggestionRef = FirebaseFirestore.instance
+        .collection('serviceCategorySuggestions')
+        .doc(id);
+
+    batch.set(categoryRef, {
+      'value': value,
+      'label': label,
+      'labelAr': label,
+      'labelEn': label,
+      'status': 'approved',
+      'sourceSuggestionId': id,
+      'approvedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    batch.update(suggestionRef, {
+      'status': 'approved',
+      'approvedValue': value,
+      'approvedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    if (!mounted) return;
+    _snack(t('تم اعتماد القسم', 'Service section approved'));
+  }
+
+  Future<void> _rejectServiceCategory(String id) async {
+    await FirebaseFirestore.instance
+        .collection('serviceCategorySuggestions')
+        .doc(id)
+        .update({
+          'status': 'rejected',
+          'rejectedAt': FieldValue.serverTimestamp(),
+        });
+
+    if (!mounted) return;
+    _snack(t('تم رفض القسم', 'Service section rejected'));
   }
 
   Future<void> _showRejectDialog(String id) async {

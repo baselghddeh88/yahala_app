@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../services/ai_description_service.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
+import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
 import 'add_question_screen.dart' as community_question;
@@ -71,6 +72,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
   bool wantsRestaurantCoupon = false;
   String housingType = 'إيجار';
   String? selectedSubtype;
+  String? selectedSubtypeLabelAr;
+  String? selectedSubtypeLabelEn;
   String? couponType;
   String? adPlacement;
   int selectedDurationDays = 30;
@@ -302,9 +305,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
         if (selectedSubtype != null && selectedSubtype!.isNotEmpty)
           'subCategory': selectedSubtype,
         if (selectedSubtype != null && selectedSubtype!.isNotEmpty)
-          'subCategoryLabelAr': subtypeLabel(selectedSubtype!, true),
+          'subCategoryLabelAr':
+              selectedSubtypeLabelAr ?? subtypeLabel(selectedSubtype!, true),
         if (selectedSubtype != null && selectedSubtype!.isNotEmpty)
-          'subCategoryLabelEn': subtypeLabel(selectedSubtype!, false),
+          'subCategoryLabelEn':
+              selectedSubtypeLabelEn ?? subtypeLabel(selectedSubtype!, false),
         if (!isAlwaysFreeCategory) ...{
           'requestedDurationDays': selectedDurationDays,
           'adDurationDays': selectedDurationDays,
@@ -361,6 +366,18 @@ class _AddPostScreenState extends State<AddPostScreen> {
         if (widget.publishImmediately && !isAlwaysFreeCategory)
           'activeUntil': expiresAt,
       });
+
+      if (selectedCategory == 'خدمة' && selectedSubtype == 'other') {
+        try {
+          await trackOtherServiceCategorySuggestion(
+            label: titleController.text,
+            adId: adRef.id,
+            userId: user.uid,
+          );
+        } catch (e) {
+          debugPrint('Service category suggestion tracking failed: $e');
+        }
+      }
 
       if (!mounted) return;
 
@@ -536,6 +553,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
       selectedCategory = value;
       selectedImages.clear();
       selectedSubtype = null;
+      selectedSubtypeLabelAr = null;
+      selectedSubtypeLabelEn = null;
       if (isFreePromotionCategory(value)) {
         promoteInCategory = false;
       }
@@ -1766,6 +1785,24 @@ class _AddPostScreenState extends State<AddPostScreen> {
     final options = subtypesForCategory(selectedCategory);
     if (options.isEmpty) return const SizedBox.shrink();
 
+    if (selectedCategory == 'خدمة') {
+      return StreamBuilder<List<CategorySubtypeOption>>(
+        stream: approvedServiceCategoriesStream(widget.isArabic),
+        builder: (context, snapshot) {
+          return _subtypeDropdown([...options, ...?snapshot.data]);
+        },
+      );
+    }
+
+    return _subtypeDropdown(options);
+  }
+
+  Widget _subtypeDropdown(List<CategorySubtypeOption> options) {
+    final selectedValue =
+        options.any((option) => option.value == selectedSubtype)
+        ? selectedSubtype
+        : null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1775,7 +1812,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: selectedSubtype,
+          value: selectedValue,
           isExpanded: true,
           icon: const Icon(Icons.keyboard_arrow_down, color: yaHalaGreen),
           dropdownColor: widget.isDark ? cardColor : Colors.white,
@@ -1802,6 +1839,16 @@ class _AddPostScreenState extends State<AddPostScreen> {
               : (value) {
                   setState(() {
                     selectedSubtype = value;
+                    final selectedOption = options.where(
+                      (option) => option.value == value,
+                    );
+                    if (selectedOption.isEmpty) {
+                      selectedSubtypeLabelAr = null;
+                      selectedSubtypeLabelEn = null;
+                    } else {
+                      selectedSubtypeLabelAr = selectedOption.first.ar;
+                      selectedSubtypeLabelEn = selectedOption.first.en;
+                    }
                     if (!hasSelectedSubtype) promoteInCategory = false;
                   });
                 },
