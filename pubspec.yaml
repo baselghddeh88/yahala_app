@@ -25,7 +25,6 @@ dependencies:
   sign_in_with_apple: ^6.1.1
 
   image_picker: ^1.2.2
-  mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
   shared_preferences: ^2.5.4
   url_launcher: ^6.3.1

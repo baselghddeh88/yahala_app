@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -80,28 +79,6 @@ class _CouponScannerScreenState extends State<CouponScannerScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: yaHalaGold, width: 1.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      onPressed: loading ? null : _openCameraScanner,
-                      icon: const Icon(Icons.photo_camera, color: yaHalaGold),
-                      label: Text(
-                        t('مسح بالكاميرا', 'Scan with camera'),
-                        style: const TextStyle(
-                          color: yaHalaGold,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   TextField(
                     controller: codeController,
                     textCapitalization: TextCapitalization.characters,
@@ -163,29 +140,6 @@ class _CouponScannerScreenState extends State<CouponScannerScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _openCameraScanner() async {
-    final scannedCode = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CouponCameraScannerScreen(
-          isArabic: widget.isArabic,
-          isDark: widget.isDark,
-        ),
-      ),
-    );
-
-    if (scannedCode == null || scannedCode.trim().isEmpty) return;
-
-    codeController.text = _extractCouponCode(scannedCode);
-    await _verifyCode();
-  }
-
-  String _extractCouponCode(String value) {
-    final text = value.trim().toUpperCase();
-    final match = RegExp(r'YH-[A-Z0-9]+').firstMatch(text);
-    return match?.group(0) ?? text;
   }
 
   Widget _messageBox(String text) {
@@ -374,118 +328,5 @@ class _CouponScannerScreenState extends State<CouponScannerScreen> {
     }
 
     if (mounted) setState(() => loading = false);
-  }
-}
-
-class CouponCameraScannerScreen extends StatefulWidget {
-  final bool isArabic;
-  final bool isDark;
-
-  const CouponCameraScannerScreen({
-    super.key,
-    required this.isArabic,
-    required this.isDark,
-  });
-
-  @override
-  State<CouponCameraScannerScreen> createState() =>
-      _CouponCameraScannerScreenState();
-}
-
-class _CouponCameraScannerScreenState extends State<CouponCameraScannerScreen> {
-  final MobileScannerController controller = MobileScannerController(
-    formats: const [BarcodeFormat.qrCode],
-  );
-  bool scanned = false;
-
-  String t(String ar, String en) => widget.isArabic ? ar : en;
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: widget.isArabic ? TextDirection.rtl : TextDirection.ltr,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: yaHalaGreen,
-          centerTitle: true,
-          title: Text(
-            t('مسح الكوبون', 'Scan Coupon'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          actions: [
-            IconButton(
-              onPressed: () => controller.toggleTorch(),
-              icon: const Icon(Icons.flashlight_on, color: Colors.white),
-            ),
-          ],
-        ),
-        body: Stack(
-          children: [
-            MobileScanner(
-              controller: controller,
-              onDetect: (capture) {
-                if (scanned) return;
-                String? value;
-                for (final barcode in capture.barcodes) {
-                  final rawValue = barcode.rawValue;
-                  if (rawValue != null && rawValue.trim().isNotEmpty) {
-                    value = rawValue;
-                    break;
-                  }
-                }
-                if (value == null || value.trim().isEmpty) return;
-
-                scanned = true;
-                Navigator.pop(context, value);
-              },
-            ),
-            Center(
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: yaHalaGold, width: 4),
-                ),
-              ),
-            ),
-            PositionedDirectional(
-              start: 22,
-              end: 22,
-              bottom: 36,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Text(
-                  t(
-                    'وجّه الكاميرا على كود الكوبون',
-                    'Point the camera at the coupon code',
-                  ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
