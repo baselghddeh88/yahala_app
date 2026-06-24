@@ -37,25 +37,35 @@ Future<void> _initializeFirebase() async {
 }
 
 Future<void> _configureMessagingAfterLaunch() async {
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+  try {
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  } catch (error) {
+    debugPrint('FCM permission request skipped: $error');
+    return;
+  }
 
-  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+  try {
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
 
-  await FirebaseMessaging.instance.setAutoInitEnabled(true);
+    await FirebaseMessaging.instance.setAutoInitEnabled(true);
 
-  NotificationService.listenToTokenRefresh();
+    NotificationService.listenToTokenRefresh();
 
-  NotificationService.listenToNotificationClicks();
+    NotificationService.listenToNotificationClicks();
 
-  NotificationService.saveFcmToken();
+    NotificationService.saveFcmToken();
+  } catch (error) {
+    debugPrint('FCM setup skipped: $error');
+  }
 }
 
 bool _isAdminUrl() {

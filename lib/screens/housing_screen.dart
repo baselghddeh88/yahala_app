@@ -7,9 +7,10 @@ import 'search_screen.dart';
 import '../services/ad_actions.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/value_formatters.dart';
-import '../widgets/city_picker_field.dart';
+import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/paid_category_ads.dart';
+import '../widgets/section_filter_panel.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -41,6 +42,8 @@ class _HousingScreenState extends State<HousingScreen> {
   String query = '';
   String cityFilter = '';
   String zipFilter = '';
+  bool get hasActiveFilters =>
+      query.isNotEmpty || cityFilter.isNotEmpty || zipFilter.isNotEmpty;
 
   String t(String ar, String en) => isArabic ? ar : en;
 
@@ -69,6 +72,17 @@ class _HousingScreenState extends State<HousingScreen> {
     return (query.isEmpty || text.contains(query)) &&
         (cityFilter.isEmpty || city.contains(cityFilter)) &&
         (zipFilter.isEmpty || zip.startsWith(zipFilter));
+  }
+
+  void _clearFilters() {
+    setState(() {
+      query = '';
+      cityFilter = '';
+      zipFilter = '';
+      queryController.clear();
+      cityController.clear();
+      zipController.clear();
+    });
   }
 
   @override
@@ -143,10 +157,6 @@ class _HousingScreenState extends State<HousingScreen> {
               ),
 
               const SizedBox(height: 22),
-
-              _sectionTitle(t('آخر العقارات', 'Latest Properties')),
-
-              const SizedBox(height: 12),
 
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -272,105 +282,26 @@ class _HousingScreenState extends State<HousingScreen> {
     );
   }
 
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: isDark ? Colors.white : Colors.black,
-        fontWeight: FontWeight.w800,
-        fontSize: 18,
-      ),
-    );
-  }
-
   Widget _filterPanel(String title) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? cardColor : const Color(0xFFF3F3F3),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _filterInput(
-            controller: queryController,
-            hint: t('ابحث عن سكن', 'Search housing'),
-            icon: Icons.search,
-            onChanged: (value) {
-              setState(() => query = value.trim().toLowerCase());
-            },
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: CityPickerField(
-                  controller: cityController,
-                  isArabic: isArabic,
-                  isDark: isDark,
-                  hint: t('المدينة', 'City'),
-                  onSelected: (value) =>
-                      setState(() => cityFilter = value.trim().toLowerCase()),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _filterInput(
-                  controller: zipController,
-                  hint: 'ZIP',
-                  icon: Icons.pin_drop,
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    setState(() => zipFilter = value.trim().toLowerCase());
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterInput({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    required ValueChanged<String> onChanged,
-    TextInputType? keyboardType,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: TextStyle(color: isDark ? Colors.white : Colors.black),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.grey),
-          prefixIcon: Icon(icon, color: yaHalaGreen),
-          filled: true,
-          fillColor: isDark ? bgDark : Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none,
-          ),
-        ),
-        onChanged: onChanged,
-      ),
+    return SectionFilterPanel(
+      isArabic: isArabic,
+      isDark: isDark,
+      title: title,
+      searchHint: t('ابحث عن سكن', 'Search housing'),
+      searchController: queryController,
+      cityController: cityController,
+      zipController: zipController,
+      hasActiveFilters: hasActiveFilters,
+      onClear: _clearFilters,
+      onSearchChanged: (value) {
+        setState(() => query = value.trim().toLowerCase());
+      },
+      onCitySelected: (value) {
+        setState(() => cityFilter = value.trim().toLowerCase());
+      },
+      onZipChanged: (value) {
+        setState(() => zipFilter = value.trim().toLowerCase());
+      },
     );
   }
 }
@@ -568,79 +499,43 @@ Widget _housingCard({
 
           const SizedBox(height: 16),
 
-          Row(
-            children: [
+          ContactActionsWrap(
+            actions: [
               if (showCall)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: yaHalaGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () =>
-                        AdActions.callPhone(context, phone, isArabic: isArabic),
-                    icon: const Icon(Icons.phone, color: Colors.white),
-                    label: Text(
-                      isArabic ? 'اتصال' : 'Call',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
+                ContactActionData(
+                  color: yaHalaGreen,
+                  icon: Icons.phone,
+                  label: isArabic ? 'اتصال' : 'Call',
+                  onPressed: () =>
+                      AdActions.callPhone(context, phone, isArabic: isArabic),
                 ),
-
-              if (showCall && (showSms || allowInAppMessage))
-                const SizedBox(width: 8),
-
               if (showSms)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: yaHalaGold,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () =>
-                        AdActions.sendSms(context, phone, isArabic: isArabic),
-                    icon: const Icon(Icons.sms, color: Colors.white),
-                    label: Text(
-                      isArabic ? 'رسالة' : 'SMS',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
+                ContactActionData(
+                  color: yaHalaGold,
+                  icon: Icons.sms,
+                  label: isArabic ? 'رسالة' : 'SMS',
+                  onPressed: () =>
+                      AdActions.sendSms(context, phone, isArabic: isArabic),
                 ),
-
-              if (showSms && allowInAppMessage) const SizedBox(width: 8),
-
               if (allowInAppMessage)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () => AdActions.openInAppChat(
-                      context,
-                      adId: adId,
-                      data: data,
-                      isArabic: isArabic,
-                      isDark: isDark,
-                    ),
-                    icon: const Icon(Icons.chat, color: Colors.white),
-                    label: Text(
-                      isArabic ? 'التطبيق' : 'App',
-                      style: const TextStyle(color: Colors.white),
-                    ),
+                ContactActionData(
+                  color: Colors.blueGrey,
+                  icon: Icons.chat,
+                  label: isArabic ? 'التطبيق' : 'App',
+                  onPressed: () => AdActions.openInAppChat(
+                    context,
+                    adId: adId,
+                    data: data,
+                    isArabic: isArabic,
+                    isDark: isDark,
                   ),
                 ),
-
-              const SizedBox(width: 6),
-
-              FavoriteButton(adId: adId, data: data, isArabic: isArabic),
             ],
+            trailing: FavoriteButton(
+              adId: adId,
+              data: data,
+              isArabic: isArabic,
+            ),
           ),
         ],
       ),

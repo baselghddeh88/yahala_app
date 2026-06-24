@@ -62,6 +62,7 @@ class _EditAdScreenState extends State<EditAdScreen> {
   DateTime? eventDate;
 
   bool isSaving = false;
+  bool _saveInFlight = false;
   bool isFormattingDescription = false;
   String get category => widget.data['category']?.toString() ?? '';
   bool get isHousing => category == 'سكن';
@@ -166,6 +167,7 @@ class _EditAdScreenState extends State<EditAdScreen> {
   }
 
   Future<void> saveAd() async {
+    if (_saveInFlight) return;
     FocusManager.instance.primaryFocus?.unfocus();
     final needsPhone = allowCall || allowSms;
     final couponNeedsValue =
@@ -204,121 +206,167 @@ class _EditAdScreenState extends State<EditAdScreen> {
       return;
     }
 
+    _saveInFlight = true;
     setState(() => isSaving = true);
 
-    final uploadedImages = await uploadNewImages();
-    final allImages = [...existingImageUrls, ...uploadedImages];
-    final requestCategoryPromotion = canPromoteInCategory && promoteInCategory;
-    final clearCategoryPromotion =
-        canPromoteInCategory &&
-        !promoteInCategory &&
-        widget.data['adPlacement']?.toString() == categoryTopAdPlacement;
+    try {
+      final uploadedImages = await uploadNewImages();
+      final allImages = [...existingImageUrls, ...uploadedImages];
+      final requestCategoryPromotion =
+          canPromoteInCategory && promoteInCategory;
+      final clearCategoryPromotion =
+          canPromoteInCategory &&
+          !promoteInCategory &&
+          widget.data['adPlacement']?.toString() == categoryTopAdPlacement;
 
-    final updateData = <String, dynamic>{
-      'title': titleController.text.trim(),
-      'description': descriptionController.text.trim(),
-      'city': cityController.text.trim(),
-      'address': addressController.text.trim(),
-      'zipCode': zipController.text.trim(),
-      'phone': cleanPhoneInput(phoneController.text),
-      'price': cleanMoneyInput(priceController.text),
-      if (isEvent && eventDate != null)
-        'eventDate': Timestamp.fromDate(eventDate!)
-      else
-        'eventDate': FieldValue.delete(),
-      if (isHousing) 'housingType': housingType,
-      if (hasCouponDetails) ...{
-        'hasCoupon': true,
-        'merchantName': isCoupon
-            ? descriptionController.text.trim()
-            : titleController.text.trim(),
-        'couponType': couponType,
-        'couponValue': couponType == 'percent'
-            ? cleanPercentInput(couponValueController.text)
-            : couponType == 'amount'
-            ? cleanMoneyInput(couponValueController.text)
-            : couponValueController.text.trim(),
-        'couponEndsAt': Timestamp.fromDate(couponEndDate!),
-        'couponLimit': int.tryParse(couponLimitController.text.trim()) ?? 0,
-        'couponTerms': couponTermsController.text.trim(),
-        'onePerUser': true,
-      } else ...{
-        'hasCoupon': false,
-        'couponType': FieldValue.delete(),
-        'couponValue': FieldValue.delete(),
-        'couponEndsAt': FieldValue.delete(),
-        'couponLimit': FieldValue.delete(),
-        'couponTerms': FieldValue.delete(),
-      },
-      'allowCall': allowCall,
-      'allowSms': allowSms,
-      'allowInAppMessage': allowInAppMessage,
-      'imageUrl': allImages.isNotEmpty ? allImages.first : '',
-      'imageUrls': allImages,
-      'status': 'pending',
-      if (!isFreePromotionCategory(category)) ...{
-        'requestedDurationDays': selectedDurationDays,
-        'adDurationDays': selectedDurationDays,
-      },
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+      final updateData = <String, dynamic>{
+        'title': titleController.text.trim(),
+        'description': descriptionController.text.trim(),
+        'city': cityController.text.trim(),
+        'address': addressController.text.trim(),
+        'zipCode': zipController.text.trim(),
+        'phone': cleanPhoneInput(phoneController.text),
+        'price': cleanMoneyInput(priceController.text),
+        if (isEvent && eventDate != null)
+          'eventDate': Timestamp.fromDate(eventDate!)
+        else
+          'eventDate': FieldValue.delete(),
+        if (isHousing) 'housingType': housingType,
+        if (hasCouponDetails) ...{
+          'hasCoupon': true,
+          'merchantName': isCoupon
+              ? descriptionController.text.trim()
+              : titleController.text.trim(),
+          'couponType': couponType,
+          'couponValue': couponType == 'percent'
+              ? cleanPercentInput(couponValueController.text)
+              : couponType == 'amount'
+              ? cleanMoneyInput(couponValueController.text)
+              : couponValueController.text.trim(),
+          'couponEndsAt': Timestamp.fromDate(couponEndDate!),
+          'couponLimit': int.tryParse(couponLimitController.text.trim()) ?? 0,
+          'couponTerms': couponTermsController.text.trim(),
+          'onePerUser': true,
+        } else ...{
+          'hasCoupon': false,
+          'couponType': FieldValue.delete(),
+          'couponValue': FieldValue.delete(),
+          'couponEndsAt': FieldValue.delete(),
+          'couponLimit': FieldValue.delete(),
+          'couponTerms': FieldValue.delete(),
+        },
+        'allowCall': allowCall,
+        'allowSms': allowSms,
+        'allowInAppMessage': allowInAppMessage,
+        'imageUrl': allImages.isNotEmpty ? allImages.first : '',
+        'imageUrls': allImages,
+        'status': 'pending',
+        if (!isFreePromotionCategory(category)) ...{
+          'requestedDurationDays': selectedDurationDays,
+          'adDurationDays': selectedDurationDays,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-    if (requestCategoryPromotion) {
-      updateData.addAll({
-        'adPlacement': categoryTopAdPlacement,
-        'paidAdType': 'category_top',
-        'isPaidAdRequest': true,
-        'requestedCategory': category,
-        'requestedPlacementLabel': t(
-          'أولوية أول 10 داخل القسم',
-          'Top 10 priority inside category',
-        ),
-        'paymentRequired': false,
-        'paymentStatus': 'free_pilot',
-        'paidLaunchMode': 'free_until_payments_enabled',
-      });
-    } else if (clearCategoryPromotion) {
-      updateData.addAll({
-        'adPlacement': FieldValue.delete(),
-        'paidAdType': FieldValue.delete(),
-        'isPaidAdRequest': FieldValue.delete(),
-        'requestedPlacementLabel': FieldValue.delete(),
-        'paymentStatus': 'not_required',
-        'paidLaunchMode': FieldValue.delete(),
-      });
-    }
+      if (requestCategoryPromotion) {
+        updateData.addAll({
+          'adPlacement': categoryTopAdPlacement,
+          'paidAdType': 'category_top',
+          'isPaidAdRequest': true,
+          'requestedCategory': category,
+          'requestedPlacementLabel': t(
+            'أولوية أول 10 داخل القسم',
+            'Top 10 priority inside category',
+          ),
+          'paymentRequired': false,
+          'paymentStatus': 'free_pilot',
+          'paidLaunchMode': 'free_until_payments_enabled',
+        });
+      } else if (clearCategoryPromotion) {
+        updateData.addAll({
+          'adPlacement': FieldValue.delete(),
+          'paidAdType': FieldValue.delete(),
+          'isPaidAdRequest': FieldValue.delete(),
+          'requestedPlacementLabel': FieldValue.delete(),
+          'paymentStatus': 'not_required',
+          'paidLaunchMode': FieldValue.delete(),
+        });
+      }
 
-    if (hasSubtypeOptions && hasSelectedSubtype) {
-      updateData['subCategory'] = selectedSubtype;
-      updateData['subCategoryLabelAr'] = subtypeLabel(selectedSubtype!, true);
-      updateData['subCategoryLabelEn'] = subtypeLabel(selectedSubtype!, false);
-    } else if (hasSubtypeOptions) {
-      updateData['subCategory'] = FieldValue.delete();
-      updateData['subCategoryLabelAr'] = FieldValue.delete();
-      updateData['subCategoryLabelEn'] = FieldValue.delete();
-    }
+      if (hasSubtypeOptions && hasSelectedSubtype) {
+        updateData['subCategory'] = selectedSubtype;
+        updateData['subCategoryLabelAr'] = subtypeLabel(selectedSubtype!, true);
+        updateData['subCategoryLabelEn'] = subtypeLabel(
+          selectedSubtype!,
+          false,
+        );
+      } else if (hasSubtypeOptions) {
+        updateData['subCategory'] = FieldValue.delete();
+        updateData['subCategoryLabelAr'] = FieldValue.delete();
+        updateData['subCategoryLabelEn'] = FieldValue.delete();
+      }
 
-    await FirebaseFirestore.instance
-        .collection('ads')
-        .doc(widget.docId)
-        .update(updateData);
+      await FirebaseFirestore.instance
+          .collection('ads')
+          .doc(widget.docId)
+          .update(updateData);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() => isSaving = false);
+      setState(() => isSaving = false);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          t(
-            'تم تعديل الإعلان وإرساله للمراجعة',
-            'Ad updated and sent for review',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t(
+              'تم تعديل الإعلان وإرساله للمراجعة',
+              'Ad updated and sent for review',
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    Navigator.pop(context);
+      Navigator.pop(context);
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'EditAd FirebaseException: plugin=${e.plugin}, code=${e.code}, message=${e.message}',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_firebaseSaveErrorMessage(e))));
+    } catch (e) {
+      debugPrint('EditAd save error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('حدث خطأ أثناء الحفظ', 'Error while saving'))),
+      );
+    } finally {
+      _saveInFlight = false;
+      if (mounted) setState(() => isSaving = false);
+    }
+  }
+
+  String _firebaseSaveErrorMessage(FirebaseException error) {
+    if (error.code == 'permission-denied' || error.code == 'unauthorized') {
+      return t(
+        'ما عندك صلاحية لتعديل هذا الإعلان',
+        'You do not have permission to edit this ad',
+      );
+    }
+    if (error.plugin == 'firebase_storage') {
+      return t(
+        'تعذر رفع الصورة. جرّب صورة ثانية أو أعد المحاولة.',
+        'Could not upload the image. Try another image or retry.',
+      );
+    }
+    if (error.code == 'unavailable' || error.code == 'network-request-failed') {
+      return t(
+        'تعذر الاتصال بفايربيز. تأكد من الإنترنت وجرب مرة ثانية.',
+        'Could not reach Firebase. Check your connection and try again.',
+      );
+    }
+    return t('حدث خطأ أثناء الحفظ', 'Error while saving');
   }
 
   Future<void> formatDescriptionWithAi() async {
@@ -418,16 +466,19 @@ class _EditAdScreenState extends State<EditAdScreen> {
 
   Future<List<String>> uploadNewImages() async {
     final urls = <String>[];
+    final ownerId = widget.data['userId']?.toString().trim();
 
-    for (final image in selectedImages) {
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${urls.length}.jpg';
+    for (var index = 0; index < selectedImages.length; index++) {
+      final image = selectedImages[index];
+      final fileName = '${DateTime.now().microsecondsSinceEpoch}_$index.jpg';
       final ref = FirebaseStorage.instance
           .ref()
           .child('ads_images')
+          .child(ownerId == null || ownerId.isEmpty ? 'unknown' : ownerId)
+          .child(widget.docId)
           .child(fileName);
 
-      await ref.putFile(image);
+      await ref.putFile(image, SettableMetadata(contentType: 'image/jpeg'));
       urls.add(await ref.getDownloadURL());
     }
 
@@ -1457,17 +1508,20 @@ class _EditAdScreenState extends State<EditAdScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return SwitchListTile(
-      value: value,
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      activeThumbColor: yaHalaGreen,
-      secondary: Icon(icon, color: value ? yaHalaGreen : Colors.grey),
-      title: Text(
-        title,
-        style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+    return Material(
+      type: MaterialType.transparency,
+      child: SwitchListTile(
+        value: value,
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        activeThumbColor: yaHalaGreen,
+        secondary: Icon(icon, color: value ? yaHalaGreen : Colors.grey),
+        title: Text(
+          title,
+          style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+        ),
+        onChanged: isSaving ? null : onChanged,
       ),
-      onChanged: isSaving ? null : onChanged,
     );
   }
 

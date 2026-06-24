@@ -46,7 +46,10 @@ class AddPostScreen extends StatefulWidget {
 class _AddPostScreenState extends State<AddPostScreen> {
   late String selectedCategory;
   bool isLoading = false;
+  bool _publishInFlight = false;
   bool isFormattingDescription = false;
+  final scrollController = ScrollController();
+  final postInformationKey = GlobalKey();
 
   final List<File> selectedImages = [];
   final ImagePicker picker = ImagePicker();
@@ -118,6 +121,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   @override
   void dispose() {
+    scrollController.dispose();
     titleController.dispose();
     descriptionController.dispose();
     cityController.dispose();
@@ -168,18 +172,23 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
-  Future<List<String>> uploadImages() async {
+  Future<List<String>> uploadImages({
+    required String adId,
+    required String userId,
+  }) async {
     final List<String> urls = [];
 
-    for (final image in selectedImages) {
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${urls.length}.jpg';
+    for (var index = 0; index < selectedImages.length; index++) {
+      final image = selectedImages[index];
+      final fileName = '${DateTime.now().microsecondsSinceEpoch}_$index.jpg';
       final ref = FirebaseStorage.instance
           .ref()
           .child('ads_images')
+          .child(userId)
+          .child(adId)
           .child(fileName);
 
-      await ref.putFile(image);
+      await ref.putFile(image, SettableMetadata(contentType: 'image/jpeg'));
       urls.add(await ref.getDownloadURL());
     }
 
@@ -187,6 +196,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   Future<void> publishPost() async {
+    if (_publishInFlight) return;
     FocusManager.instance.primaryFocus?.unfocus();
 
     final needsPhone = selectedCategory != 'سؤال' && (allowCall || allowSms);
@@ -235,24 +245,38 @@ class _AddPostScreenState extends State<AddPostScreen> {
       return;
     }
 
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            t(
+              'سجّل الدخول أولاً حتى تقدر تنشر إعلان',
+              'Please log in before posting an ad',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    _publishInFlight = true;
     setState(() => isLoading = true);
 
     try {
-      final imageUrls = await uploadImages();
-      final user = FirebaseAuth.instance.currentUser;
-      final userDoc = user == null
-          ? null
-          : await FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .get();
-      final userData = userDoc?.data() ?? {};
+      final adRef = FirebaseFirestore.instance.collection('ads').doc();
+      final imageUrls = await uploadImages(adId: adRef.id, userId: user.uid);
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final userData = userDoc.data() ?? {};
       final authorName = _safeName(
         userData['name']?.toString(),
-        user?.displayName ?? user?.email,
+        user.displayName ?? user.email,
       );
       final authorPhotoUrl =
-          userData['photoUrl']?.toString() ?? user?.photoURL ?? '';
+          userData['photoUrl']?.toString() ?? user.photoURL ?? '';
       final paidType = _requestedPaidType();
       final placementLabel = _requestedPlacementLabel();
       final isAlwaysFreeCategory = isFreePromotionCategory(selectedCategory);
@@ -260,7 +284,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         DateTime.now().add(Duration(days: selectedDurationDays)),
       );
 
-      await FirebaseFirestore.instance.collection('ads').add({
+      await adRef.set({
         'title': titleController.text.trim(),
         'description': descriptionController.text.trim(),
         'city': cityController.text.trim(),
@@ -326,8 +350,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'isFeatured': false,
         'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : '',
         'imageUrls': imageUrls,
-        'userId': user?.uid ?? '',
-        'userEmail': user?.email ?? '',
+        'userId': user.uid,
+        'userEmail': user.email ?? '',
         'authorName': authorName,
         'authorPhotoUrl': authorPhotoUrl,
         if (widget.createdByAdmin) 'createdByAdmin': true,
@@ -347,9 +371,19 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
 
       Navigator.pop(context);
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      debugPrint(
+        'AddPost FirebaseException: plugin=${e.plugin}, code=${e.code}, message=${e.message}',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_firebasePublishErrorMessage(e))));
     } catch (e) {
       if (!mounted) return;
 
+      debugPrint('AddPost publish error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(t('حدث خطأ أثناء النشر', 'Error while publishing')),
@@ -357,7 +391,30 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
     }
 
+    _publishInFlight = false;
     if (mounted) setState(() => isLoading = false);
+  }
+
+  String _firebasePublishErrorMessage(FirebaseException error) {
+    if (error.code == 'permission-denied' || error.code == 'unauthorized') {
+      return t(
+        'ما عندك صلاحية للنشر. سجّل الدخول وجرب مرة ثانية.',
+        'You do not have permission to post. Log in and try again.',
+      );
+    }
+    if (error.plugin == 'firebase_storage') {
+      return t(
+        'تعذر رفع الصورة. جرّب صورة ثانية أو أعد المحاولة.',
+        'Could not upload the image. Try another image or retry.',
+      );
+    }
+    if (error.code == 'unavailable' || error.code == 'network-request-failed') {
+      return t(
+        'تعذر الاتصال بفايربيز. تأكد من الإنترنت وجرب مرة ثانية.',
+        'Could not reach Firebase. Check your connection and try again.',
+      );
+    }
+    return t('حدث خطأ أثناء النشر', 'Error while publishing');
   }
 
   String _requestedPaidType() {
@@ -494,6 +551,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
     });
   }
 
+  void scrollToPostInformation() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = postInformationKey.currentContext;
+      if (context == null) return;
+
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        alignment: 0.04,
+      );
+    });
+  }
+
   String screenTitle() {
     if (isVipAdRequest) {
       return t('طلب إعلان VIP', 'Request VIP Ad');
@@ -565,6 +636,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
           ),
         ),
         body: SingleChildScrollView(
+          controller: scrollController,
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -608,7 +680,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 const SizedBox(height: 24),
               ],
 
-              _sectionTitle(t('معلومات الإعلان', 'Post Information')),
+              KeyedSubtree(
+                key: postInformationKey,
+                child: _sectionTitle(t('معلومات الإعلان', 'Post Information')),
+              ),
               const SizedBox(height: 12),
 
               if (isPaidAdRequest) _paidAdGuidelines(),
@@ -1543,17 +1618,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return SwitchListTile(
-      value: value,
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      activeThumbColor: yaHalaGreen,
-      secondary: Icon(icon, color: value ? yaHalaGreen : Colors.grey),
-      title: Text(
-        title,
-        style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+    return Material(
+      type: MaterialType.transparency,
+      child: SwitchListTile(
+        value: value,
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        activeThumbColor: yaHalaGreen,
+        secondary: Icon(icon, color: value ? yaHalaGreen : Colors.grey),
+        title: Text(
+          title,
+          style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+        ),
+        onChanged: isLoading ? null : onChanged,
       ),
-      onChanged: isLoading ? null : onChanged,
     );
   }
 
@@ -1642,7 +1720,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
-      onTap: () => changeCategory(value),
+      onTap: () {
+        changeCategory(value);
+        if (!isCategoryLocked) scrollToPostInformation();
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),

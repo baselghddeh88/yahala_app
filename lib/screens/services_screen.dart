@@ -8,9 +8,10 @@ import '../services/ad_actions.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
-import '../widgets/city_picker_field.dart';
+import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/paid_category_ads.dart';
+import '../widgets/section_filter_panel.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -53,6 +54,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
   String t(String ar, String en) => isArabic ? ar : en;
   bool get isSubCategoryPage => widget.initialSubCategory != null;
   bool get hasSubtypeFilters => serviceSubtypes.isNotEmpty;
+  bool get hasActiveFilters =>
+      query.isNotEmpty ||
+      cityFilter.isNotEmpty ||
+      zipFilter.isNotEmpty ||
+      (!isSubCategoryPage && subCategoryFilter.isNotEmpty);
+  Set<String> get serviceSubtypeValues =>
+      serviceSubtypes.map((option) => option.value).toSet();
   String get pageTitle => t(
     widget.initialTitleAr ?? 'الخدمات',
     widget.initialTitleEn ?? 'Services',
@@ -89,10 +97,119 @@ class _ServicesScreenState extends State<ServicesScreen> {
     ].whereType<Object>().join(' ').toLowerCase();
 
     return (query.isEmpty || text.contains(query)) &&
-        (subCategoryFilter.isEmpty ||
-            data['subCategory']?.toString() == subCategoryFilter) &&
+        _matchesSelectedSubtype(data) &&
         (cityFilter.isEmpty || city.contains(cityFilter)) &&
         (zipFilter.isEmpty || zip.startsWith(zipFilter));
+  }
+
+  bool _matchesSelectedSubtype(Map<String, dynamic> data) {
+    if (subCategoryFilter.isEmpty) return true;
+
+    final subCategory = data['subCategory']?.toString().trim() ?? '';
+    if (subCategoryFilter == 'catering_service') {
+      return subCategory == subCategoryFilter || _isCateringService(data);
+    }
+    if (subCategoryFilter == 'government_services') {
+      return subCategory == subCategoryFilter || _isGovernmentService(data);
+    }
+    if (subCategoryFilter == 'insurance') {
+      return subCategory == subCategoryFilter || _isInsuranceService(data);
+    }
+    if (subCategoryFilter != 'other') return subCategory == subCategoryFilter;
+
+    if (_isKnownServiceAlias(data)) return false;
+
+    final labelAr = data['subCategoryLabelAr']?.toString().trim() ?? '';
+    final labelEn = data['subCategoryLabelEn']?.toString().trim() ?? '';
+    return subCategory.isEmpty ||
+        subCategory == 'other' ||
+        labelAr == 'خدمة أخرى' ||
+        labelEn.toLowerCase() == 'other service' ||
+        !serviceSubtypeValues.contains(subCategory);
+  }
+
+  bool _isKnownServiceAlias(Map<String, dynamic> data) {
+    return _isCateringService(data) ||
+        _isGovernmentService(data) ||
+        _isInsuranceService(data);
+  }
+
+  bool _isCateringService(Map<String, dynamic> data) {
+    return _serviceTextMatches(data, const [
+      'catering_service',
+      'catering',
+      'food catering',
+      'كاترينج',
+      'كاترنج',
+      'كيترينج',
+      'ضيافة',
+      'تموين',
+      'طبخ مناسبات',
+    ]);
+  }
+
+  bool _isGovernmentService(Map<String, dynamic> data) {
+    return _serviceTextMatches(data, const [
+      'government_services',
+      'government service',
+      'government services',
+      'dmv',
+      'passport',
+      'uscis',
+      'معاملات حكومية',
+      'معاملة حكومية',
+      'دوائر حكومية',
+      'خدمات حكومية',
+      'جوازات',
+      'جواز سفر',
+      'اقامة',
+      'إقامة',
+      'هجرة',
+    ]);
+  }
+
+  bool _isInsuranceService(Map<String, dynamic> data) {
+    return _serviceTextMatches(data, const [
+      'insurance',
+      'انشرانس',
+      'انشورنس',
+      'تأمين',
+      'تامين',
+      'تأمين سيارات',
+      'تامين سيارات',
+      'تأمين صحي',
+      'تامين صحي',
+      'تأمين منزل',
+      'تامين منزل',
+      'auto insurance',
+      'health insurance',
+      'home insurance',
+      'life insurance',
+    ]);
+  }
+
+  bool _serviceTextMatches(Map<String, dynamic> data, List<String> needles) {
+    final text = [
+      data['title'],
+      data['description'],
+      data['subCategory'],
+      data['subCategoryLabelAr'],
+      data['subCategoryLabelEn'],
+    ].whereType<Object>().join(' ').toLowerCase();
+
+    return needles.any((needle) => text.contains(needle.toLowerCase()));
+  }
+
+  void _clearFilters() {
+    setState(() {
+      query = '';
+      cityFilter = '';
+      zipFilter = '';
+      if (!isSubCategoryPage) subCategoryFilter = '';
+      queryController.clear();
+      cityController.clear();
+      zipController.clear();
+    });
   }
 
   List<QueryDocumentSnapshot<Object?>> _sortVisibleServices(
@@ -170,10 +287,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
               ),
 
               const SizedBox(height: 22),
-              if (!isSubCategoryPage) ...[
-                _serviceDirectory(),
-                const SizedBox(height: 22),
-              ],
               PaidCategoryAds(
                 isArabic: isArabic,
                 isDark: isDark,
@@ -183,13 +296,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
               ),
 
               const SizedBox(height: 22),
-              _sectionTitle(
-                isSubCategoryPage
-                    ? t('آخر $pageTitle', 'Latest $pageTitle')
-                    : t('آخر الخدمات', 'Latest Services'),
-              ),
-              const SizedBox(height: 12),
-
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('ads')
@@ -312,229 +418,27 @@ class _ServicesScreenState extends State<ServicesScreen> {
     );
   }
 
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: isDark ? Colors.white : Colors.black,
-        fontWeight: FontWeight.w800,
-        fontSize: 18,
-      ),
-    );
-  }
-
-  IconData _serviceIcon(String value) {
-    return switch (value) {
-      'plumbing' => Icons.plumbing,
-      'electrician' => Icons.electrical_services,
-      'carpenter' => Icons.handyman,
-      'cleaning' => Icons.cleaning_services,
-      'painting' => Icons.format_paint,
-      'moving' => Icons.local_shipping,
-      'ac_repair' => Icons.ac_unit,
-      'camera_security' => Icons.videocam,
-      'taxes' => Icons.receipt_long,
-      'notary' => Icons.edit_document,
-      'translation' => Icons.translate,
-      'beauty' => Icons.spa,
-      'education' => Icons.school,
-      'tech_repair' => Icons.phone_iphone,
-      _ => Icons.miscellaneous_services,
-    };
-  }
-
-  Widget _serviceDirectory() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle(t('أقسام الخدمات', 'Service categories')),
-        const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: serviceSubtypes.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.92,
-          ),
-          itemBuilder: (context, index) {
-            final option = serviceSubtypes[index];
-            return InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ServicesScreen(
-                      isArabic: isArabic,
-                      isDark: isDark,
-                      initialSubCategory: option.value,
-                      initialTitleAr: option.ar,
-                      initialTitleEn: option.en,
-                    ),
-                  ),
-                );
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark ? cardColor : const Color(0xFFF3F3F3),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.06),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _serviceIcon(option.value),
-                      color: yaHalaGreen,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      isArabic ? option.ar : option.en,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _serviceSubtypeCountBadge(option.value),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _serviceSubtypeCountBadge(String subtype) {
-    final stream = FirebaseFirestore.instance
-        .collection('ads')
-        .where('status', isEqualTo: 'approved')
-        .where('category', isEqualTo: 'خدمة')
-        .where('subCategory', isEqualTo: subtype)
-        .snapshots();
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: stream,
-      builder: (context, snapshot) {
-        final count = snapshot.data?.docs.length ?? 0;
-        return Text(
-          isArabic ? '$count خدمة' : '$count services',
-          style: TextStyle(
-            color: isDark ? Colors.white54 : Colors.grey.shade600,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-        );
-      },
-    );
-  }
-
   Widget _filterPanel(String title) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? cardColor : const Color(0xFFF3F3F3),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _filterInput(
-            controller: queryController,
-            hint: t('ابحث عن خدمة', 'Search service'),
-            icon: Icons.search,
-            onChanged: (value) {
-              setState(() => query = value.trim().toLowerCase());
-            },
-          ),
-          if (!isSubCategoryPage) ...[
-            _subCategoryDropdown(),
-            const SizedBox(height: 10),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: CityPickerField(
-                  controller: cityController,
-                  isArabic: isArabic,
-                  isDark: isDark,
-                  hint: t('المدينة', 'City'),
-                  onSelected: (value) =>
-                      setState(() => cityFilter = value.trim().toLowerCase()),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _filterInput(
-                  controller: zipController,
-                  hint: 'ZIP',
-                  icon: Icons.pin_drop,
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    setState(() => zipFilter = value.trim().toLowerCase());
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterInput({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    required ValueChanged<String> onChanged,
-    TextInputType? keyboardType,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: TextStyle(color: isDark ? Colors.white : Colors.black),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.grey),
-          prefixIcon: Icon(icon, color: yaHalaGreen),
-          filled: true,
-          fillColor: isDark ? bgDark : Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none,
-          ),
-        ),
-        onChanged: onChanged,
-      ),
+    return SectionFilterPanel(
+      isArabic: isArabic,
+      isDark: isDark,
+      title: title,
+      searchHint: t('ابحث عن خدمة', 'Search service'),
+      searchController: queryController,
+      cityController: cityController,
+      zipController: zipController,
+      hasActiveFilters: hasActiveFilters,
+      onClear: _clearFilters,
+      onSearchChanged: (value) {
+        setState(() => query = value.trim().toLowerCase());
+      },
+      onCitySelected: (value) {
+        setState(() => cityFilter = value.trim().toLowerCase());
+      },
+      onZipChanged: (value) {
+        setState(() => zipFilter = value.trim().toLowerCase());
+      },
+      extraFilter: !isSubCategoryPage ? _subCategoryDropdown() : null,
     );
   }
 
@@ -704,78 +608,43 @@ Widget _serviceCard({
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
+          ContactActionsWrap(
+            actions: [
               if (showCall)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: yaHalaGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () =>
-                        AdActions.callPhone(context, phone, isArabic: isArabic),
-                    icon: const Icon(Icons.phone, color: Colors.white),
-                    label: Text(
-                      isArabic ? 'اتصال' : 'Call',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
+                ContactActionData(
+                  color: yaHalaGreen,
+                  icon: Icons.phone,
+                  label: isArabic ? 'اتصال' : 'Call',
+                  onPressed: () =>
+                      AdActions.callPhone(context, phone, isArabic: isArabic),
                 ),
-
-              if (showCall && (showSms || allowInAppMessage))
-                const SizedBox(width: 8),
-
               if (showSms)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: yaHalaGold,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () =>
-                        AdActions.sendSms(context, phone, isArabic: isArabic),
-                    icon: const Icon(Icons.sms, color: Colors.white),
-                    label: Text(
-                      isArabic ? 'رسالة' : 'SMS',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
+                ContactActionData(
+                  color: yaHalaGold,
+                  icon: Icons.sms,
+                  label: isArabic ? 'رسالة' : 'SMS',
+                  onPressed: () =>
+                      AdActions.sendSms(context, phone, isArabic: isArabic),
                 ),
-
-              if (showSms && allowInAppMessage) const SizedBox(width: 8),
-
               if (allowInAppMessage)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () => AdActions.openInAppChat(
-                      context,
-                      adId: adId,
-                      data: data,
-                      isArabic: isArabic,
-                      isDark: isDark,
-                    ),
-                    icon: const Icon(Icons.chat, color: Colors.white),
-                    label: Text(
-                      isArabic ? 'التطبيق' : 'App',
-                      style: const TextStyle(color: Colors.white),
-                    ),
+                ContactActionData(
+                  color: Colors.blueGrey,
+                  icon: Icons.chat,
+                  label: isArabic ? 'التطبيق' : 'App',
+                  onPressed: () => AdActions.openInAppChat(
+                    context,
+                    adId: adId,
+                    data: data,
+                    isArabic: isArabic,
+                    isDark: isDark,
                   ),
                 ),
-
-              const SizedBox(width: 6),
-              FavoriteButton(adId: adId, data: data, isArabic: isArabic),
             ],
+            trailing: FavoriteButton(
+              adId: adId,
+              data: data,
+              isArabic: isArabic,
+            ),
           ),
         ],
       ),

@@ -41,6 +41,17 @@ const serviceSubtypes = [
   CategorySubtypeOption(value: 'beauty', ar: 'تجميل', en: 'Beauty'),
   CategorySubtypeOption(value: 'education', ar: 'تعليم ودروس', en: 'Education'),
   CategorySubtypeOption(
+    value: 'catering_service',
+    ar: 'كاترينج',
+    en: 'Catering',
+  ),
+  CategorySubtypeOption(
+    value: 'government_services',
+    ar: 'معاملات حكومية',
+    en: 'Government services',
+  ),
+  CategorySubtypeOption(value: 'insurance', ar: 'تأمين', en: 'Insurance'),
+  CategorySubtypeOption(
     value: 'tech_repair',
     ar: 'كمبيوتر وجوالات',
     en: 'Tech repair',

@@ -6,8 +6,8 @@ import 'add_post_screen.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
-import '../widgets/city_picker_field.dart';
 import '../widgets/promoted_ad_frame.dart';
+import '../widgets/section_filter_panel.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -66,7 +66,14 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   bool get isSubCategoryPage => widget.initialSubCategory != null;
   bool get hasSubtypeFilters =>
       category != restaurantCategory &&
+      category != storesCategory &&
       subtypesForCategory(category).isNotEmpty;
+  bool get keepsSubtypesWithPriority => category == 'محامين وهجرة';
+  bool get hasActiveFilters =>
+      query.isNotEmpty ||
+      cityFilter.isNotEmpty ||
+      zipFilter.isNotEmpty ||
+      (hasSubtypeFilters && subCategoryFilter.isNotEmpty);
   List<String> get categoryQueryValues => category == restaurantCategory
       ? [restaurantCategory, legacyRestaurantStoreCategory]
       : [category];
@@ -123,11 +130,25 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
         (zipFilter.isEmpty || zip.startsWith(zipFilter));
   }
 
+  void _clearFilters() {
+    setState(() {
+      query = '';
+      cityFilter = '';
+      zipFilter = '';
+      if (!isSubCategoryPage) subCategoryFilter = '';
+      queryController.clear();
+      cityController.clear();
+      zipController.clear();
+    });
+  }
+
   List<QueryDocumentSnapshot<Object?>> _sortVisibleAds(
     Iterable<QueryDocumentSnapshot<Object?>> docs,
   ) {
     final visible = docs.toList();
-    if (hasSubtypeFilters && subCategoryFilter.isEmpty) {
+    if (hasSubtypeFilters &&
+        subCategoryFilter.isEmpty &&
+        !keepsSubtypesWithPriority) {
       visible.sort(compareAdsNewestFirst);
       return visible;
     }
@@ -160,18 +181,8 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
               const SizedBox(height: 22),
               _addButton(context),
               const SizedBox(height: 22),
-              if (hasSubtypeFilters && !isSubCategoryPage) ...[
-                _subtypeDirectory(),
-                const SizedBox(height: 22),
-              ],
               _categoryFeaturedAds(context),
               const SizedBox(height: 22),
-              _sectionTitle(
-                isRestaurantOrStore
-                    ? t('آخر الإعلانات', 'Latest ads')
-                    : t('آخر الإعلانات', 'Latest ads'),
-              ),
-              const SizedBox(height: 12),
               StreamBuilder<QuerySnapshot>(
                 stream: _adsStream(),
                 builder: (context, snapshot) {
@@ -223,233 +234,28 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   }
 
   Widget _filterPanel() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? cardColor : const Color(0xFFF3F3F3),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            t('فلتر $pageTitleAr', '$pageTitleEn filter'),
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _filterInput(
-            controller: queryController,
-            hint: t('ابحث داخل القسم', 'Search this section'),
-            icon: Icons.search,
-            onChanged: (value) {
-              setState(() => query = value.trim().toLowerCase());
-            },
-          ),
-          if (hasSubtypeFilters && !isSubCategoryPage) ...[
-            _subCategoryDropdown(),
-            const SizedBox(height: 10),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: CityPickerField(
-                  controller: cityController,
-                  isArabic: isArabic,
-                  isDark: isDark,
-                  hint: t('المدينة', 'City'),
-                  onSelected: (value) =>
-                      setState(() => cityFilter = value.trim().toLowerCase()),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _filterInput(
-                  controller: zipController,
-                  hint: 'ZIP',
-                  icon: Icons.pin_drop,
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    setState(() => zipFilter = value.trim().toLowerCase());
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterInput({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    required ValueChanged<String> onChanged,
-    TextInputType? keyboardType,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: TextStyle(color: isDark ? Colors.white : Colors.black),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.grey),
-          prefixIcon: Icon(icon, color: yaHalaGreen),
-          filled: true,
-          fillColor: isDark ? bgDark : Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none,
-          ),
-        ),
-        onChanged: onChanged,
-      ),
-    );
-  }
-
-  IconData _subtypeIcon(String value) {
-    return switch (value) {
-      'restaurant' => Icons.restaurant,
-      'cafe' => Icons.local_cafe,
-      'sweets' => Icons.cake,
-      'bakery' => Icons.bakery_dining,
-      'catering' => Icons.room_service,
-      'hookah' => Icons.nightlife,
-      'market' => Icons.storefront,
-      'phone_store' => Icons.phone_iphone,
-      'clothing' => Icons.checkroom,
-      'jewelry' => Icons.diamond,
-      'furniture' => Icons.chair,
-      'beauty_store' => Icons.spa,
-      'auto_parts' => Icons.car_repair,
-      'immigration' => Icons.flight_takeoff,
-      'accident' => Icons.health_and_safety,
-      'family' => Icons.family_restroom,
-      'business' => Icons.business_center,
-      'consultation' => Icons.record_voice_over,
-      'notary' => Icons.edit_document,
-      _ => icon,
-    };
-  }
-
-  Widget _subtypeDirectory() {
-    final options = subtypesForCategory(category);
-    if (!hasSubtypeFilters || options.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle(t('الأقسام الفرعية', 'Subcategories')),
-        const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: options.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.92,
-          ),
-          itemBuilder: (context, index) {
-            final option = options[index];
-            return InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CategoryAdsScreen(
-                      isArabic: isArabic,
-                      isDark: isDark,
-                      category: category,
-                      titleAr: titleAr,
-                      titleEn: titleEn,
-                      icon: _subtypeIcon(option.value),
-                      initialSubCategory: option.value,
-                      initialSubCategoryTitleAr: option.ar,
-                      initialSubCategoryTitleEn: option.en,
-                    ),
-                  ),
-                );
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark ? cardColor : const Color(0xFFF3F3F3),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.06),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _subtypeIcon(option.value),
-                      color: yaHalaGreen,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      isArabic ? option.ar : option.en,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _subtypeCountBadge(option.value),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _subtypeCountBadge(String subtype) {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection('ads')
-        .where('status', isEqualTo: 'approved')
-        .where('subCategory', isEqualTo: subtype);
-
-    if (categoryQueryValues.length == 1) {
-      query = query.where('category', isEqualTo: category);
-    } else {
-      query = query.where('category', whereIn: categoryQueryValues);
-    }
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: query.snapshots(),
-      builder: (context, snapshot) {
-        final count = snapshot.data?.docs.length ?? 0;
-        return Text(
-          isArabic ? '$count إعلان' : '$count ads',
-          style: TextStyle(
-            color: isDark ? Colors.white54 : Colors.grey.shade600,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-        );
+    return SectionFilterPanel(
+      isArabic: isArabic,
+      isDark: isDark,
+      title: t('فلتر $pageTitleAr', '$pageTitleEn filter'),
+      searchHint: t('ابحث داخل القسم', 'Search this section'),
+      searchController: queryController,
+      cityController: cityController,
+      zipController: zipController,
+      hasActiveFilters: hasActiveFilters,
+      onClear: _clearFilters,
+      onSearchChanged: (value) {
+        setState(() => query = value.trim().toLowerCase());
       },
+      onCitySelected: (value) {
+        setState(() => cityFilter = value.trim().toLowerCase());
+      },
+      onZipChanged: (value) {
+        setState(() => zipFilter = value.trim().toLowerCase());
+      },
+      extraFilter: hasSubtypeFilters && !isSubCategoryPage
+          ? _subCategoryDropdown()
+          : null,
     );
   }
 
@@ -541,7 +347,9 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   }
 
   Widget _categoryFeaturedAds(BuildContext context) {
-    if (hasSubtypeFilters && subCategoryFilter.isEmpty) {
+    if (hasSubtypeFilters &&
+        subCategoryFilter.isEmpty &&
+        !keepsSubtypesWithPriority) {
       return const SizedBox.shrink();
     }
 

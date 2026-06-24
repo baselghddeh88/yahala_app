@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/ad_actions.dart';
+import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -348,71 +349,35 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
     final showCall = allowCall && phone.trim().isNotEmpty;
     final showSms = allowSms && phone.trim().isNotEmpty;
 
-    return Row(
-      children: [
+    return ContactActionsWrap(
+      actions: [
         if (showCall)
-          Expanded(
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: yaHalaGreen,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () => AdActions.callPhone(
-                context,
-                phone,
-                isArabic: widget.isArabic,
-              ),
-              icon: const Icon(Icons.phone, color: Colors.white),
-              label: Text(
-                t('اتصال', 'Call'),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
+          ContactActionData(
+            color: yaHalaGreen,
+            icon: Icons.phone,
+            label: t('اتصال', 'Call'),
+            onPressed: () =>
+                AdActions.callPhone(context, phone, isArabic: widget.isArabic),
           ),
-        if (showCall && (showSms || allowInAppMessage))
-          const SizedBox(width: 8),
         if (showSms)
-          Expanded(
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: yaHalaGold,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () =>
-                  AdActions.sendSms(context, phone, isArabic: widget.isArabic),
-              icon: const Icon(Icons.sms, color: Colors.white),
-              label: Text(
-                t('رسالة', 'SMS'),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
+          ContactActionData(
+            color: yaHalaGold,
+            icon: Icons.sms,
+            label: t('رسالة', 'SMS'),
+            onPressed: () =>
+                AdActions.sendSms(context, phone, isArabic: widget.isArabic),
           ),
-        if (showSms && allowInAppMessage) const SizedBox(width: 8),
         if (allowInAppMessage)
-          Expanded(
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () => AdActions.openInAppChat(
-                context,
-                adId: widget.questionId,
-                data: widget.data,
-                isArabic: widget.isArabic,
-                isDark: widget.isDark,
-              ),
-              icon: const Icon(Icons.chat, color: Colors.white),
-              label: Text(
-                t('التطبيق', 'App'),
-                style: const TextStyle(color: Colors.white),
-              ),
+          ContactActionData(
+            color: Colors.blueGrey,
+            icon: Icons.chat,
+            label: t('التطبيق', 'App'),
+            onPressed: () => AdActions.openInAppChat(
+              context,
+              adId: widget.questionId,
+              data: widget.data,
+              isArabic: widget.isArabic,
+              isDark: widget.isDark,
             ),
           ),
       ],

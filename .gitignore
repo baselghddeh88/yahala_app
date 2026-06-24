@@ -37,6 +37,7 @@ migrate_working_dir/
 /ios/build/
 /android/.gradle/
 .firebase/
+.firebase-cli-config/.android/cache/
 
 # Symbolication related
 app.*.symbols

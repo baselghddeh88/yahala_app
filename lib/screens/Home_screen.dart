@@ -4,8 +4,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'jobs_screen.dart';
-import 'housing_screen.dart';
 import 'services_screen.dart';
 import 'coupons_screen.dart';
 import 'community_screen.dart';
@@ -802,16 +800,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final categories = [
       {
-        'icon': Icons.work,
-        'label': t('وظائف', 'Jobs'),
-        'color': yaHalaGreen,
-        'screen': JobsScreen(isArabic: isArabic, isDark: isDark),
+        ..._genericCategory(
+          icon: Icons.work,
+          labelAr: 'وظائف',
+          labelEn: 'Jobs',
+          category: 'وظيفة',
+          color: yaHalaGreen,
+        ),
       },
       {
-        'icon': Icons.home,
-        'label': t('سكن', 'Housing'),
-        'color': yaHalaGold,
-        'screen': HousingScreen(isArabic: isArabic, isDark: isDark),
+        ..._genericCategory(
+          icon: Icons.home,
+          labelAr: 'سكن',
+          labelEn: 'Housing',
+          category: 'سكن',
+          color: yaHalaGold,
+        ),
       },
       {
         'icon': Icons.handyman,
@@ -859,12 +863,6 @@ class _HomeScreenState extends State<HomeScreen> {
         category: 'محامين وهجرة',
         color: yaHalaGreen,
       ),
-      {
-        'icon': Icons.add_circle_outline,
-        'label': t('أضف إعلان', 'Add Post'),
-        'color': yaHalaGold,
-        'screen': AddPostScreen(isArabic: isArabic, isDark: isDark),
-      },
     ];
 
     return GridView.builder(
@@ -1004,21 +1002,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            TextButton.icon(
-              style: TextButton.styleFrom(
-                foregroundColor: yaHalaGreen,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              ),
-              onPressed: () => _openPaidAdRequest(placement),
-              icon: const Icon(Icons.add_circle_outline, size: 17),
-              label: Text(
-                t('أضف', 'Add'),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                ),
-              ),
-            ),
           ],
         ),
       ],
@@ -1034,19 +1017,6 @@ class _HomeScreenState extends State<HomeScreen> {
           isDark: isDark,
           placement: placement,
           title: title,
-        ),
-      ),
-    );
-  }
-
-  void _openPaidAdRequest(String placement) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddPostScreen(
-          isArabic: isArabic,
-          isDark: isDark,
-          initialAdPlacement: placement,
         ),
       ),
     );
@@ -1196,29 +1166,65 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: items.map((item) {
-            final index = item['index'] as int;
-            final active = currentIndex == index;
+        child: SizedBox(
+          height: 72,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: items.map((item) {
+              final index = item['index'] as int;
+              final active = currentIndex == index;
 
-            return IconButton(
-              onPressed: () {
-                if (index == 2) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          AddPostScreen(isArabic: isArabic, isDark: isDark),
-                    ),
-                  );
-                } else {
-                  setState(() => currentIndex = index);
-                }
-              },
-              icon: _bottomNavIcon(item['icon'] as IconData, active, index),
+              if (index == 2) return _bottomAddButton();
+
+              return IconButton(
+                onPressed: () => setState(() => currentIndex = index),
+                icon: _bottomNavIcon(item['icon'] as IconData, active, index),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomAddButton() {
+    return Transform.translate(
+      offset: const Offset(0, -22),
+      child: Semantics(
+        button: true,
+        label: t('أضف إعلان', 'Add Post'),
+        child: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    AddPostScreen(isArabic: isArabic, isDark: isDark),
+              ),
             );
-          }).toList(),
+          },
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: yaHalaGold,
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.18)
+                    : Colors.white,
+                width: 4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: yaHalaGold.withValues(alpha: isDark ? 0.28 : 0.42),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.add, color: Colors.white, size: 38),
+          ),
         ),
       ),
     );

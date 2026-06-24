@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ad_actions.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
+import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -221,92 +222,42 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               const SizedBox(height: 24),
 
               if (showCall || showSms || allowInAppMessage)
-                Row(
-                  children: [
+                ContactActionsWrap(
+                  buttonHeight: 54,
+                  actions: [
                     if (showCall)
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: yaHalaGreen,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            onPressed: () => AdActions.callPhone(
-                              context,
-                              phone,
-                              isArabic: isArabic,
-                            ),
-                            icon: const Icon(Icons.phone, color: Colors.white),
-                            label: Text(
-                              t('اتصال', 'Call'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                      ContactActionData(
+                        color: yaHalaGreen,
+                        icon: Icons.phone,
+                        label: t('اتصال', 'Call'),
+                        onPressed: () => AdActions.callPhone(
+                          context,
+                          phone,
+                          isArabic: isArabic,
                         ),
                       ),
-                    if (showCall && (showSms || allowInAppMessage))
-                      const SizedBox(width: 10),
                     if (showSms)
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: yaHalaGold,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            onPressed: () => AdActions.sendSms(
-                              context,
-                              phone,
-                              isArabic: isArabic,
-                            ),
-                            icon: const Icon(Icons.sms, color: Colors.white),
-                            label: Text(
-                              t('رسالة', 'SMS'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                      ContactActionData(
+                        color: yaHalaGold,
+                        icon: Icons.sms,
+                        label: t('رسالة', 'SMS'),
+                        onPressed: () => AdActions.sendSms(
+                          context,
+                          phone,
+                          isArabic: isArabic,
                         ),
                       ),
-                    if (showSms && allowInAppMessage) const SizedBox(width: 10),
                     if (allowInAppMessage)
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueGrey,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            onPressed: () => AdActions.openInAppChat(
-                              context,
-                              adId: adId,
-                              data: data,
-                              isArabic: isArabic,
-                              isDark: isDark,
-                            ),
-                            icon: const Icon(Icons.chat, color: Colors.white),
-                            label: Text(
-                              t('التطبيق', 'App'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                      ContactActionData(
+                        color: Colors.blueGrey,
+                        icon: Icons.chat,
+                        label: t('التطبيق', 'App'),
+                        onPressed: () => AdActions.openInAppChat(
+                          context,
+                          adId: adId,
+                          data: data,
+                          isArabic: isArabic,
+                          isDark: isDark,
                         ),
                       ),
                   ],

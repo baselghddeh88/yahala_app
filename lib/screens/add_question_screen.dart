@@ -311,17 +311,20 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return SwitchListTile(
-      value: value,
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      activeThumbColor: yaHalaGreen,
-      secondary: Icon(icon, color: value ? yaHalaGreen : Colors.grey),
-      title: Text(
-        title,
-        style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+    return Material(
+      type: MaterialType.transparency,
+      child: SwitchListTile(
+        value: value,
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        activeThumbColor: yaHalaGreen,
+        secondary: Icon(icon, color: value ? yaHalaGreen : Colors.grey),
+        title: Text(
+          title,
+          style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+        ),
+        onChanged: isLoading ? null : onChanged,
       ),
-      onChanged: isLoading ? null : onChanged,
     );
   }
 }
