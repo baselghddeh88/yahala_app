@@ -21,6 +21,7 @@ import '../constants.dart';
 import '../services/app_settings.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
+import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/favorite_button.dart';
 
@@ -43,6 +44,13 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+class _HomeFilterOption {
+  final String value;
+  final String label;
+
+  const _HomeFilterOption(this.value, this.label);
+}
+
 class _HomeScreenState extends State<HomeScreen> {
   late bool isArabic;
   late bool isDark;
@@ -53,10 +61,15 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _featuredAdsPageController = PageController();
   Timer? _featuredTimer;
   Timer? _featuredAdsTimer;
+  StreamSubscription<List<CategorySubtypeOption>>?
+  _dynamicServiceCategoriesSubscription;
   int _featuredIndex = 0;
   int _featuredAdsCount = 0;
   int _featuredMiniIndex = 0;
   int _featuredMiniCount = 0;
+  String homeCategoryFilter = '';
+  String homeSubtypeFilter = '';
+  List<CategorySubtypeOption> dynamicHomeServiceSubtypes = const [];
 
   @override
   void initState() {
@@ -65,12 +78,18 @@ class _HomeScreenState extends State<HomeScreen> {
     isDark = widget.initialDark;
     _startFeaturedAutoSlide();
     _startFeaturedAdsAutoSlide();
+    _dynamicServiceCategoriesSubscription =
+        approvedServiceCategoriesStream(isArabic).listen((options) {
+          if (!mounted) return;
+          setState(() => dynamicHomeServiceSubtypes = options);
+        });
   }
 
   @override
   void dispose() {
     _featuredTimer?.cancel();
     _featuredAdsTimer?.cancel();
+    _dynamicServiceCategoriesSubscription?.cancel();
     _featuredPageController.dispose();
     _featuredAdsPageController.dispose();
     super.dispose();
@@ -216,6 +235,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 24),
           _sectionTitle(t('آخر الإعلانات', 'Latest Ads')),
           const SizedBox(height: 10),
+          _homeLatestFilter(),
+          const SizedBox(height: 12),
           _latestAdsFromFirebase(),
         ],
       ),
@@ -483,7 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
       stream: FirebaseFirestore.instance
           .collection('ads')
           .where('status', isEqualTo: 'approved')
-          .limit(50)
+          .limit(150)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -1037,7 +1058,12 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        final ads = sortAdsByPromotion(snapshot.data!.docs).take(10).toList();
+        final ads = sortAdsByPromotion(
+          snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _matchesHomeLatestFilters(data);
+          }),
+        ).take(10).toList();
 
         if (ads.isEmpty) {
           return Text(
@@ -1137,6 +1163,193 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  Widget _homeLatestFilter() {
+    final subtypes = _homeSubtypeOptions();
+    final selectedSubtype =
+        subtypes.any((option) => option.value == homeSubtypeFilter)
+        ? homeSubtypeFilter
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? cardColor : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final categoryDropdown = _homeDropdown(
+            value: homeCategoryFilter.isEmpty ? null : homeCategoryFilter,
+            hint: t('كل الأقسام', 'All categories'),
+            items: _homeCategoryOptions()
+                .map(
+                  (item) => DropdownMenuItem<String>(
+                    value: item.value,
+                    child: Text(item.label),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                homeCategoryFilter = value ?? '';
+                homeSubtypeFilter = '';
+              });
+            },
+          );
+
+          final subtypeDropdown = _homeDropdown(
+            value: selectedSubtype,
+            hint: t('كل التفريعات', 'All subtypes'),
+            items: subtypes
+                .map(
+                  (option) => DropdownMenuItem<String>(
+                    value: option.value,
+                    child: Text(isArabic ? option.ar : option.en),
+                  ),
+                )
+                .toList(),
+            onChanged: subtypes.isEmpty
+                ? null
+                : (value) {
+                    setState(() => homeSubtypeFilter = value ?? '');
+                  },
+          );
+
+          final clearButton =
+              homeCategoryFilter.isEmpty && homeSubtypeFilter.isEmpty
+              ? const SizedBox.shrink()
+              : TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      homeCategoryFilter = '';
+                      homeSubtypeFilter = '';
+                    });
+                  },
+                  icon: const Icon(Icons.close, size: 16),
+                  label: Text(t('مسح', 'Clear')),
+                );
+
+          if (constraints.maxWidth < 430) {
+            return Column(
+              children: [
+                categoryDropdown,
+                const SizedBox(height: 10),
+                subtypeDropdown,
+                if (homeCategoryFilter.isNotEmpty ||
+                    homeSubtypeFilter.isNotEmpty)
+                  Align(
+                    alignment: isArabic
+                        ? Alignment.centerLeft
+                        : Alignment.centerRight,
+                    child: clearButton,
+                  ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: categoryDropdown),
+              const SizedBox(width: 10),
+              Expanded(child: subtypeDropdown),
+              clearButton,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _homeDropdown({
+    required String? value,
+    required String hint,
+    required List<DropdownMenuItem<String>> items,
+    required ValueChanged<String?>? onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? bgDark : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: yaHalaGreen),
+          dropdownColor: isDark ? cardColor : Colors.white,
+          hint: Text(hint, style: const TextStyle(color: Colors.grey)),
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+          items: [
+            DropdownMenuItem<String>(value: '', child: Text(hint)),
+            ...items,
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  List<_HomeFilterOption> _homeCategoryOptions() {
+    return [
+      _HomeFilterOption('وظيفة', t('وظائف', 'Jobs')),
+      _HomeFilterOption('سكن', t('سكن', 'Housing')),
+      _HomeFilterOption('خدمة', t('خدمات', 'Services')),
+      _HomeFilterOption(restaurantCategory, t('مطاعم وكافيهات', 'Restaurants')),
+      _HomeFilterOption(storesCategory, t('محلات تجارية', 'Stores')),
+      _HomeFilterOption('فعاليات', t('فعاليات ومناسبات', 'Events')),
+      _HomeFilterOption('محامين وهجرة', t('محامين وهجرة', 'Lawyers')),
+      _HomeFilterOption('كوبون', t('كوبونات', 'Coupons')),
+    ];
+  }
+
+  List<CategorySubtypeOption> _homeSubtypeOptions() {
+    return switch (homeCategoryFilter) {
+      'خدمة' => [...serviceSubtypes, ...dynamicHomeServiceSubtypes],
+      restaurantCategory => restaurantSubtypes,
+      storesCategory => storeSubtypes,
+      'محامين وهجرة' => legalSubtypes,
+      _ => const [],
+    };
+  }
+
+  bool _matchesHomeLatestFilters(Map<String, dynamic> data) {
+    final category = data['category']?.toString() ?? '';
+    if (homeCategoryFilter.isNotEmpty) {
+      if (homeCategoryFilter == restaurantCategory) {
+        if (!isRestaurantCategory(category)) return false;
+      } else if (category != homeCategoryFilter) {
+        return false;
+      }
+    }
+
+    if (homeSubtypeFilter.isEmpty) return true;
+    if (data['subCategory']?.toString() == homeSubtypeFilter) return true;
+
+    final subtype = _homeSubtypeOptions().where(
+      (option) => option.value == homeSubtypeFilter,
+    );
+    if (subtype.isEmpty) return false;
+
+    final text = [
+      data['title'],
+      data['description'],
+      data['subCategoryLabelAr'],
+      data['subCategoryLabelEn'],
+    ].whereType<Object>().join(' ').toLowerCase();
+
+    return text.contains(subtype.first.ar.toLowerCase()) ||
+        text.contains(subtype.first.en.toLowerCase());
   }
 
   Widget _buildEnhancedBottomNav() {
