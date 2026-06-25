@@ -141,6 +141,30 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
     });
   }
 
+  bool get _showsPrioritySection =>
+      !(hasSubtypeFilters &&
+          subCategoryFilter.isEmpty &&
+          !keepsSubtypesWithPriority);
+
+  List<QueryDocumentSnapshot<Object?>> _visiblePriorityAds(
+    Iterable<QueryDocumentSnapshot<Object?>> docs,
+  ) {
+    if (!_showsPrioritySection) return const [];
+
+    return sortPaidAdsByPromotion(
+      docs.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return isCategoryTopAd(data);
+      }),
+    ).take(categoryTopAdSlots).toList();
+  }
+
+  Set<String> _visiblePriorityAdIds(
+    Iterable<QueryDocumentSnapshot<Object?>> docs,
+  ) {
+    return _visiblePriorityAds(docs).map((doc) => doc.id).toSet();
+  }
+
   List<QueryDocumentSnapshot<Object?>> _sortVisibleAds(
     Iterable<QueryDocumentSnapshot<Object?>> docs,
   ) {
@@ -207,11 +231,13 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                     );
                   }
 
+                  final matchedAds = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _matchesFilters(data);
+                  }).toList();
+                  final priorityIds = _visiblePriorityAdIds(matchedAds);
                   final ads = _sortVisibleAds(
-                    snapshot.data!.docs.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return _matchesFilters(data);
-                    }),
+                    matchedAds.where((doc) => !priorityIds.contains(doc.id)),
                   );
 
                   if (ads.isEmpty) {
@@ -480,9 +506,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   }
 
   Widget _categoryFeaturedAds(BuildContext context) {
-    if (hasSubtypeFilters &&
-        subCategoryFilter.isEmpty &&
-        !keepsSubtypesWithPriority) {
+    if (!_showsPrioritySection) {
       return const SizedBox.shrink();
     }
 
@@ -491,12 +515,12 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
-        final featured = sortPaidAdsByPromotion(
+        final featured = _visiblePriorityAds(
           snapshot.data!.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return _matchesFilters(data);
           }),
-        ).take(categoryTopAdSlots).toList();
+        );
 
         if (featured.isEmpty) return const SizedBox.shrink();
 

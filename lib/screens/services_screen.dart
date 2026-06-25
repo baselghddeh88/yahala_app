@@ -249,6 +249,21 @@ class _ServicesScreenState extends State<ServicesScreen> {
     });
   }
 
+  bool get _showsPrioritySection => subCategoryFilter.isNotEmpty;
+
+  Set<String> _visiblePriorityAdIds(
+    Iterable<QueryDocumentSnapshot<Object?>> docs,
+  ) {
+    if (!_showsPrioritySection) return const {};
+
+    return sortPaidAdsByPromotion(
+      docs.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return isCategoryTopAd(data);
+      }),
+    ).take(categoryTopAdSlots).map((doc) => doc.id).toSet();
+  }
+
   List<QueryDocumentSnapshot<Object?>> _sortVisibleServices(
     Iterable<QueryDocumentSnapshot<Object?>> docs,
   ) {
@@ -334,6 +349,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 category: 'خدمة',
                 subCategory: subCategoryFilter,
                 icon: Icons.handyman,
+                requireSubCategory: true,
               ),
 
               const SizedBox(height: 22),
@@ -362,11 +378,17 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     );
                   }
 
+                  final matchedServices = (snapshot.data?.docs ?? []).where((
+                    doc,
+                  ) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _matchesFilters(data);
+                  }).toList();
+                  final priorityIds = _visiblePriorityAdIds(matchedServices);
                   final services = _sortVisibleServices(
-                    (snapshot.data?.docs ?? []).where((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return _matchesFilters(data);
-                    }),
+                    matchedServices.where(
+                      (doc) => !priorityIds.contains(doc.id),
+                    ),
                   );
 
                   if (services.isEmpty) {

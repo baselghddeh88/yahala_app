@@ -183,11 +183,18 @@ class _HousingScreenState extends State<HousingScreen> {
                     );
                   }
 
-                  final ads = sortAdsByPromotion(
-                    (snapshot.data?.docs ?? []).where((doc) {
+                  final matchedAds = (snapshot.data?.docs ?? []).where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _matchesFilters(data);
+                  }).toList();
+                  final priorityIds = sortPaidAdsByPromotion(
+                    matchedAds.where((doc) {
                       final data = doc.data() as Map<String, dynamic>;
-                      return _matchesFilters(data);
+                      return isCategoryTopAd(data);
                     }),
+                  ).take(categoryTopAdSlots).map((doc) => doc.id).toSet();
+                  final ads = sortAdsByPromotion(
+                    matchedAds.where((doc) => !priorityIds.contains(doc.id)),
                   );
 
                   if (ads.isEmpty) {

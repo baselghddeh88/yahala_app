@@ -16,6 +16,7 @@ class PaidCategoryAds extends StatelessWidget {
   final String category;
   final String? subCategory;
   final IconData icon;
+  final bool requireSubCategory;
 
   const PaidCategoryAds({
     super.key,
@@ -24,6 +25,7 @@ class PaidCategoryAds extends StatelessWidget {
     required this.category,
     this.subCategory,
     required this.icon,
+    this.requireSubCategory = false,
   });
 
   String t(String ar, String en) => isArabic ? ar : en;
@@ -38,7 +40,9 @@ class PaidCategoryAds extends StatelessWidget {
 
   Widget _featuredAds(BuildContext context) {
     final selectedSubCategory = subCategory?.trim() ?? '';
-    if (selectedSubCategory.isEmpty) return const SizedBox.shrink();
+    if (requireSubCategory && selectedSubCategory.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -52,7 +56,9 @@ class PaidCategoryAds extends StatelessWidget {
         final featured = sortPaidAdsByPromotion(
           snapshot.data!.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return data['subCategory']?.toString() == selectedSubCategory;
+            if (!isCategoryTopAd(data)) return false;
+            return selectedSubCategory.isEmpty ||
+                data['subCategory']?.toString() == selectedSubCategory;
           }),
         ).take(categoryTopAdSlots).toList();
 

@@ -178,11 +178,18 @@ class _JobsScreenState extends State<JobsScreen> {
                     );
                   }
 
-                  final jobs = sortAdsByPromotion(
-                    (snapshot.data?.docs ?? []).where((doc) {
+                  final matchedJobs = (snapshot.data?.docs ?? []).where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _matchesFilters(data);
+                  }).toList();
+                  final priorityIds = sortPaidAdsByPromotion(
+                    matchedJobs.where((doc) {
                       final data = doc.data() as Map<String, dynamic>;
-                      return _matchesFilters(data);
+                      return isCategoryTopAd(data);
                     }),
+                  ).take(categoryTopAdSlots).map((doc) => doc.id).toSet();
+                  final jobs = sortAdsByPromotion(
+                    matchedJobs.where((doc) => !priorityIds.contains(doc.id)),
                   );
 
                   if (jobs.isEmpty) {
