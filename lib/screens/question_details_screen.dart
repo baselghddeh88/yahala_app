@@ -363,7 +363,7 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
           ContactActionData(
             color: yaHalaGold,
             icon: Icons.sms,
-            label: t('رسالة', 'SMS'),
+            label: t('رسالة نصية', 'Text'),
             onPressed: () =>
                 AdActions.sendSms(context, phone, isArabic: widget.isArabic),
           ),
@@ -371,7 +371,7 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
           ContactActionData(
             color: Colors.blueGrey,
             icon: Icons.chat,
-            label: t('يا هلا', 'Ya Hala'),
+            label: t('رسالة عبر يا هلا', 'Message via Ya Hala'),
             onPressed: () => AdActions.openInAppChat(
               context,
               adId: widget.questionId,

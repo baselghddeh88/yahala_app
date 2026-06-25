@@ -241,7 +241,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       ContactActionData(
                         color: yaHalaGold,
                         icon: Icons.sms,
-                        label: t('رسالة', 'SMS'),
+                        label: t('رسالة نصية', 'Text'),
                         onPressed: () => AdActions.sendSms(
                           context,
                           phone,
@@ -252,7 +252,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       ContactActionData(
                         color: Colors.blueGrey,
                         icon: Icons.chat,
-                        label: t('يا هلا', 'Ya Hala'),
+                        label: t('رسالة عبر يا هلا', 'Message via Ya Hala'),
                         onPressed: () => AdActions.openInAppChat(
                           context,
                           adId: adId,

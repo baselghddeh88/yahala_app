@@ -838,7 +838,7 @@ Widget _serviceCard({
                 ContactActionData(
                   color: yaHalaGold,
                   icon: Icons.sms,
-                  label: isArabic ? 'رسالة' : 'SMS',
+                  label: isArabic ? 'رسالة نصية' : 'Text',
                   onPressed: () =>
                       AdActions.sendSms(context, phone, isArabic: isArabic),
                 ),
@@ -846,7 +846,7 @@ Widget _serviceCard({
                 ContactActionData(
                   color: Colors.blueGrey,
                   icon: Icons.chat,
-                  label: isArabic ? 'يا هلا' : 'Ya Hala',
+                  label: isArabic ? 'رسالة عبر يا هلا' : 'Message via Ya Hala',
                   onPressed: () => AdActions.openInAppChat(
                     context,
                     adId: adId,
