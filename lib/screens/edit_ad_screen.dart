@@ -84,10 +84,11 @@ class _EditAdScreenState extends State<EditAdScreen> {
   bool get hasSubtypeOptions => subtypesForCategory(category).isNotEmpty;
   bool get hasSelectedSubtype =>
       selectedSubtype != null && selectedSubtype!.isNotEmpty;
+  bool get canPromoteWithoutSubtype => category == 'محامين وهجرة';
   bool get canPromoteInCategory =>
       !isFreePromotionCategory(category) &&
       !isHomePaidAdRequest &&
-      (!hasSubtypeOptions || hasSelectedSubtype);
+      (!hasSubtypeOptions || hasSelectedSubtype || canPromoteWithoutSubtype);
 
   int get maxImages {
     return category == 'سكن' ? 5 : 1;

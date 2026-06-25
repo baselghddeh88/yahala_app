@@ -95,10 +95,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
       subtypesForCategory(selectedCategory).isNotEmpty;
   bool get hasSelectedSubtype =>
       selectedSubtype != null && selectedSubtype!.isNotEmpty;
+  bool get canPromoteWithoutSubtype => selectedCategory == 'محامين وهجرة';
   bool get canPromoteInCategory =>
       widget.initialAdPlacement == null &&
       !isFreePromotionCategory(selectedCategory) &&
-      (!hasSubtypeOptions || hasSelectedSubtype);
+      (!hasSubtypeOptions || hasSelectedSubtype || canPromoteWithoutSubtype);
   String? get effectiveAdPlacement => isFreePromotionCategory(selectedCategory)
       ? null
       : promoteInCategory
