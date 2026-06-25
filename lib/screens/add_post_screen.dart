@@ -13,6 +13,7 @@ import '../utils/category_subtypes.dart';
 import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
+import '../widgets/safe_bottom_scroll_view.dart';
 import 'add_question_screen.dart' as community_question;
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
@@ -655,7 +656,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
             ),
           ),
         ),
-        body: SingleChildScrollView(
+        body: SafeBottomScrollView(
           controller: scrollController,
           padding: const EdgeInsets.all(18),
           child: Column(

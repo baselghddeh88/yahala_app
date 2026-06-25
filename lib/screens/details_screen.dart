@@ -7,6 +7,7 @@ import '../services/ad_actions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/safe_bottom_scroll_view.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -116,7 +117,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ),
           ),
         ),
-        body: SingleChildScrollView(
+        body: SafeBottomScrollView(
           padding: const EdgeInsets.all(18),
           child: Center(
             child: ConstrainedBox(

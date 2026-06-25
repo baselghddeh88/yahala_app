@@ -12,6 +12,7 @@ import '../utils/category_subtypes.dart';
 import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/city_picker_field.dart';
+import '../widgets/safe_bottom_scroll_view.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -507,7 +508,7 @@ class _EditAdScreenState extends State<EditAdScreen> {
             ),
           ),
         ),
-        body: SingleChildScrollView(
+        body: SafeBottomScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

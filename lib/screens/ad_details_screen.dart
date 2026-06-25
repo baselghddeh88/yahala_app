@@ -8,6 +8,7 @@ import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
+import '../widgets/safe_bottom_scroll_view.dart';
 
 const Color yaHalaGreen = Color(0xFF1a6b3c);
 const Color yaHalaGold = Color(0xFFc9952a);
@@ -117,7 +118,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             ),
           ],
         ),
-        body: SingleChildScrollView(
+        body: SafeBottomScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
