@@ -252,7 +252,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       ContactActionData(
                         color: Colors.blueGrey,
                         icon: Icons.chat,
-                        label: t('التطبيق', 'App'),
+                        label: t('يا هلا', 'Ya Hala'),
                         onPressed: () => AdActions.openInAppChat(
                           context,
                           adId: adId,

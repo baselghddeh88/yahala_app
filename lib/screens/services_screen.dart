@@ -846,7 +846,7 @@ Widget _serviceCard({
                 ContactActionData(
                   color: Colors.blueGrey,
                   icon: Icons.chat,
-                  label: isArabic ? 'التطبيق' : 'App',
+                  label: isArabic ? 'يا هلا' : 'Ya Hala',
                   onPressed: () => AdActions.openInAppChat(
                     context,
                     adId: adId,

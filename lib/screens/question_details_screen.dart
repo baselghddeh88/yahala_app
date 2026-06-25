@@ -371,7 +371,7 @@ class _QuestionDetailsScreenState extends State<QuestionDetailsScreen> {
           ContactActionData(
             color: Colors.blueGrey,
             icon: Icons.chat,
-            label: t('التطبيق', 'App'),
+            label: t('يا هلا', 'Ya Hala'),
             onPressed: () => AdActions.openInAppChat(
               context,
               adId: widget.questionId,
