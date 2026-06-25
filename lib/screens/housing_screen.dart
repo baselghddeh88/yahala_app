@@ -382,6 +382,7 @@ Widget _housingCard({
                 height: 190,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
               ),
             )
           else

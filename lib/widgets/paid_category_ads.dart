@@ -144,6 +144,7 @@ class PaidCategoryAds extends StatelessWidget {
                         width: 76,
                         height: 76,
                         fit: BoxFit.cover,
+                        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                       ),
               ),
               const SizedBox(width: 12),

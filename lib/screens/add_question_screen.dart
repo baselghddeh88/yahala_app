@@ -290,13 +290,13 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
           ),
           _contactSwitch(
             icon: Icons.sms,
-            title: t('رسالة SMS', 'SMS message'),
+            title: t('رسالة نصية', 'Text message'),
             value: allowSms,
             onChanged: (value) => setState(() => allowSms = value),
           ),
           _contactSwitch(
             icon: Icons.chat,
-            title: t('عن طريق التطبيق', 'Through the app'),
+            title: t('رسالة عبر يا هلا', 'Message via Ya Hala'),
             value: allowInAppMessage,
             onChanged: (value) => setState(() => allowInAppMessage = value),
           ),

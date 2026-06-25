@@ -154,6 +154,7 @@ class MyAdsScreen extends StatelessWidget {
                         width: 76,
                         height: 76,
                         fit: BoxFit.cover,
+                        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                         errorBuilder: (_, _, _) {
                           return Container(
                             width: 76,

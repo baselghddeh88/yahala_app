@@ -1912,7 +1912,11 @@ class _AdminScreenState extends State<AdminScreen>
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
             child: imageUrl.isEmpty
                 ? Container(color: Colors.grey.shade200)
-                : Image.network(imageUrl, fit: BoxFit.cover),
+                : Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2096,7 +2100,7 @@ class _AdminScreenState extends State<AdminScreen>
                       onChanged: (value) {
                         setDialogState(() => allowSms = value ?? false);
                       },
-                      title: Text(t('رسالة SMS', 'SMS')),
+                      title: Text(t('رسالة نصية', 'Text message')),
                     ),
                     CheckboxListTile(
                       value: allowInAppMessage,
@@ -2106,7 +2110,7 @@ class _AdminScreenState extends State<AdminScreen>
                           () => allowInAppMessage = value ?? false,
                         );
                       },
-                      title: Text(t('رسالة داخل التطبيق', 'In-app message')),
+                      title: Text(t('رسالة عبر يا هلا', 'Message via Ya Hala')),
                     ),
                     DropdownButtonFormField<String>(
                       initialValue: paidPlacement,

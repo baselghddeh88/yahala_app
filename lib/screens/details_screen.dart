@@ -491,6 +491,7 @@ Widget _photoGallery(List<String> images, bool isArabic, bool isDark) {
                 Image.network(
                   validImages[index],
                   fit: BoxFit.cover,
+                  webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       color: isDark ? cardColor : const Color(0xFFF3F3F3),
@@ -566,6 +567,7 @@ class _FullImageViewer extends StatelessWidget {
           child: Image.network(
             imageUrl,
             fit: BoxFit.contain,
+            webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
             errorBuilder: (_, _, _) => const Icon(
               Icons.broken_image_outlined,
               color: Colors.white54,

@@ -503,7 +503,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(images[index], fit: BoxFit.cover),
+                    Image.network(
+                      images[index],
+                      fit: BoxFit.cover,
+                      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+                    ),
                     PositionedDirectional(
                       bottom: 10,
                       end: 10,
@@ -583,6 +587,7 @@ class _FullImageViewer extends StatelessWidget {
           child: Image.network(
             imageUrl,
             fit: BoxFit.contain,
+            webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
             errorBuilder: (_, _, _) => const Icon(
               Icons.broken_image_outlined,
               color: Colors.white54,

@@ -586,6 +586,7 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
                       width: 76,
                       height: 76,
                       fit: BoxFit.cover,
+                      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                     ),
             ),
             const SizedBox(width: 12),

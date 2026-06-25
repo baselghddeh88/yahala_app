@@ -374,6 +374,7 @@ Widget _jobCard({
                 height: 170,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
               ),
             )
           else

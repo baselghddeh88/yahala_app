@@ -420,6 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Image.network(
                     imageUrl,
                     fit: BoxFit.cover,
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                     errorBuilder: (_, _, _) => ColoredBox(
                       color: isDark ? cardColor : const Color(0xFFF3F3F3),
                     ),
@@ -440,6 +441,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Image.network(
                   imageUrl,
                   fit: BoxFit.contain,
+                  webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                   errorBuilder: (_, _, _) =>
                       const Icon(Icons.image_not_supported, color: Colors.grey),
                 ),
@@ -636,7 +638,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: imageUrl.isEmpty
                     ? const Icon(Icons.star, color: yaHalaGold)
-                    : Image.network(imageUrl, fit: BoxFit.cover),
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+                      ),
               ),
             ),
             const SizedBox(height: 7),
@@ -1117,6 +1123,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             width: 80,
                             height: 80,
                             fit: BoxFit.cover,
+                            webHtmlElementStrategy:
+                                WebHtmlElementStrategy.fallback,
                           ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1829,6 +1837,8 @@ class PaidAdsListScreen extends StatelessWidget {
                         : Image.network(
                             imageUrl,
                             fit: BoxFit.cover,
+                            webHtmlElementStrategy:
+                                WebHtmlElementStrategy.fallback,
                             errorBuilder: (_, _, _) => ColoredBox(
                               color: yaHalaGold.withValues(alpha: 0.12),
                               child: const Icon(
@@ -1973,6 +1983,7 @@ class _SlideImageViewer extends StatelessWidget {
                   child: Image.network(
                     imageUrl,
                     fit: BoxFit.cover,
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                     errorBuilder: (_, _, _) =>
                         const ColoredBox(color: Colors.black),
                   ),
@@ -1998,6 +2009,7 @@ class _SlideImageViewer extends StatelessWidget {
                       child: Image.network(
                         imageUrl,
                         fit: BoxFit.contain,
+                        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                         errorBuilder: (_, _, _) => const Icon(
                           Icons.image_not_supported,
                           color: Colors.white,

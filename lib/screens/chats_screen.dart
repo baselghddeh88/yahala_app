@@ -325,6 +325,7 @@ class ChatsScreen extends StatelessWidget {
           : Image.network(
               imageUrl,
               fit: BoxFit.cover,
+              webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
               errorBuilder: (_, _, _) =>
                   const Icon(Icons.campaign, color: yaHalaGold, size: 28),
             ),
@@ -352,6 +353,7 @@ class ChatsScreen extends StatelessWidget {
           ? Image.network(
               photoUrl,
               fit: BoxFit.cover,
+              webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
               errorBuilder: (_, _, _) => _smallOwnerLetter(letter),
             )
           : _smallOwnerLetter(letter),
