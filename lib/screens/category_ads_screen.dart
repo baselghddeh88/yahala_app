@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'ad_details_screen.dart';
 import 'add_post_screen.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtype_suggestions.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/value_formatters.dart';
 import '../widgets/promoted_ad_frame.dart';
@@ -67,6 +68,8 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   bool get hasSubtypeFilters =>
       category != restaurantCategory &&
       subtypesForCategory(category).isNotEmpty;
+  bool get hasDynamicSubtypes =>
+      category == storesCategory || category == 'محامين وهجرة';
   bool get keepsSubtypesWithPriority => category == 'محامين وهجرة';
   bool get hasActiveFilters =>
       query.isNotEmpty ||
@@ -308,8 +311,25 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   }
 
   Widget _subtypeDirectory() {
-    final options = subtypesForCategory(category);
-    if (!hasSubtypeFilters || options.isEmpty) return const SizedBox.shrink();
+    if (!hasSubtypeFilters) return const SizedBox.shrink();
+
+    if (hasDynamicSubtypes) {
+      return StreamBuilder<List<CategorySubtypeOption>>(
+        stream: approvedCategorySubtypesStream(category, isArabic),
+        builder: (context, snapshot) {
+          return _subtypeDirectoryGrid([
+            ...subtypesForCategory(category),
+            ...(snapshot.data ?? const <CategorySubtypeOption>[]),
+          ]);
+        },
+      );
+    }
+
+    return _subtypeDirectoryGrid(subtypesForCategory(category));
+  }
+
+  Widget _subtypeDirectoryGrid(List<CategorySubtypeOption> options) {
+    if (options.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,8 +439,22 @@ class _CategoryAdsScreenState extends State<CategoryAdsScreen> {
   }
 
   Widget _subCategoryDropdown() {
-    final options = subtypesForCategory(category);
+    if (hasDynamicSubtypes) {
+      return StreamBuilder<List<CategorySubtypeOption>>(
+        stream: approvedCategorySubtypesStream(category, isArabic),
+        builder: (context, snapshot) {
+          return _subCategoryDropdownControl([
+            ...subtypesForCategory(category),
+            ...(snapshot.data ?? const <CategorySubtypeOption>[]),
+          ]);
+        },
+      );
+    }
 
+    return _subCategoryDropdownControl(subtypesForCategory(category));
+  }
+
+  Widget _subCategoryDropdownControl(List<CategorySubtypeOption> options) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(

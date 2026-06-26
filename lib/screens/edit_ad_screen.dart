@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../services/ai_description_service.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtype_suggestions.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
@@ -1538,6 +1539,15 @@ class _EditAdScreenState extends State<EditAdScreen> {
     if (category == 'خدمة') {
       return StreamBuilder<List<CategorySubtypeOption>>(
         stream: approvedServiceCategoriesStream(widget.isArabic),
+        builder: (context, snapshot) {
+          return _subtypeDropdown([...options, ...?snapshot.data]);
+        },
+      );
+    }
+
+    if (category == storesCategory || category == 'محامين وهجرة') {
+      return StreamBuilder<List<CategorySubtypeOption>>(
+        stream: approvedCategorySubtypesStream(category, widget.isArabic),
         builder: (context, snapshot) {
           return _subtypeDropdown([...options, ...?snapshot.data]);
         },

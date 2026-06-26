@@ -79,6 +79,7 @@ const storeSubtypes = [
   CategorySubtypeOption(value: 'clothing', ar: 'ملابس', en: 'Clothing'),
   CategorySubtypeOption(value: 'jewelry', ar: 'ذهب ومجوهرات', en: 'Jewelry'),
   CategorySubtypeOption(value: 'furniture', ar: 'مفروشات', en: 'Furniture'),
+  CategorySubtypeOption(value: 'roastery', ar: 'محمصة', en: 'Roastery'),
   CategorySubtypeOption(
     value: 'beauty_store',
     ar: 'تجميل وعطور',

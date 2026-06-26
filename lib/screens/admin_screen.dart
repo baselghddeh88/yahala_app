@@ -10,6 +10,7 @@ import 'ad_details_screen.dart';
 import 'add_post_screen.dart';
 import 'question_details_screen.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtype_suggestions.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
@@ -105,7 +106,7 @@ class _AdminScreenState extends State<AdminScreen>
               Tab(text: t('منشور', 'Approved')),
               Tab(text: t('مرفوض', 'Rejected')),
               Tab(text: t('أسئلة', 'Questions')),
-              Tab(text: t('أقسام خدمات', 'Service Sections')),
+              Tab(text: t('طلبات أقسام', 'Section Requests')),
               Tab(text: t('إدارة VIP', 'VIP Manager')),
               Tab(text: t('مستخدمين', 'Users')),
               Tab(text: t('أدمنز', 'Admins')),
@@ -126,7 +127,7 @@ class _AdminScreenState extends State<AdminScreen>
             _adsList(status: 'approved', excludeQuestions: true),
             _adsList(status: 'rejected'),
             _adsList(category: 'سؤال'),
-            _serviceCategorySuggestions(),
+            _categorySuggestionRequests(),
             _slidesManager(),
             _usersAnalytics(),
             _adminsList(),
@@ -474,6 +475,26 @@ class _AdminScreenState extends State<AdminScreen>
     };
   }
 
+  Widget _categorySuggestionRequests() {
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        _sectionTitle(t('طلبات أقسام الخدمات', 'Service section requests')),
+        const SizedBox(height: 10),
+        _serviceCategorySuggestions(),
+        const SizedBox(height: 22),
+        _sectionTitle(
+          t(
+            'طلبات أقسام المحلات والمحامين',
+            'Store and lawyer section requests',
+          ),
+        ),
+        const SizedBox(height: 10),
+        _categorySubtypeSuggestions(),
+      ],
+    );
+  }
+
   Widget _serviceCategorySuggestions() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -485,13 +506,7 @@ class _AdminScreenState extends State<AdminScreen>
         if (!snapshot.hasData) return _loading();
 
         final docs = snapshot.data!.docs.toList();
-        docs.sort((a, b) {
-          final aCount = a.data()['count'];
-          final bCount = b.data()['count'];
-          final left = aCount is num ? aCount.toInt() : 0;
-          final right = bCount is num ? bCount.toInt() : 0;
-          return right.compareTo(left);
-        });
+        _sortSuggestionsByCount(docs);
 
         if (docs.isEmpty) {
           return _empty(
@@ -502,18 +517,56 @@ class _AdminScreenState extends State<AdminScreen>
           );
         }
 
-        return ListView(
-          padding: const EdgeInsets.all(18),
-          children: [
-            _sectionTitle(t('طلبات أقسام الخدمات', 'Service section requests')),
-            const SizedBox(height: 10),
-            ...docs.map(
-              (doc) => _serviceCategorySuggestionCard(doc.id, doc.data()),
-            ),
-          ],
+        return Column(
+          children: docs
+              .map((doc) => _serviceCategorySuggestionCard(doc.id, doc.data()))
+              .toList(),
         );
       },
     );
+  }
+
+  Widget _categorySubtypeSuggestions() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('categorySubtypeSuggestions')
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return _error(snapshot.error.toString());
+        if (!snapshot.hasData) return _loading();
+
+        final docs = snapshot.data!.docs.toList();
+        _sortSuggestionsByCount(docs);
+
+        if (docs.isEmpty) {
+          return _empty(
+            t(
+              'لا توجد أقسام محلات أو محامين بانتظار الموافقة',
+              'No store or lawyer sections are waiting for approval',
+            ),
+          );
+        }
+
+        return Column(
+          children: docs
+              .map((doc) => _categorySubtypeSuggestionCard(doc.id, doc.data()))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  void _sortSuggestionsByCount(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    docs.sort((a, b) {
+      final aCount = a.data()['count'];
+      final bCount = b.data()['count'];
+      final left = aCount is num ? aCount.toInt() : 0;
+      final right = bCount is num ? bCount.toInt() : 0;
+      return right.compareTo(left);
+    });
   }
 
   Widget _serviceCategorySuggestionCard(String id, Map<String, dynamic> data) {
@@ -579,6 +632,79 @@ class _AdminScreenState extends State<AdminScreen>
                 t('رفض', 'Reject'),
                 Colors.deepOrange,
                 () => _rejectServiceCategory(id),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _categorySubtypeSuggestionCard(String id, Map<String, dynamic> data) {
+    final label = data['label']?.toString() ?? id;
+    final category = data['category']?.toString() ?? '';
+    final count = data['count'];
+    final countText = count is num ? count.toInt().toString() : '0';
+    final lastAdId = data['lastAdId']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: widget.isDark ? cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: widget.isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.category, color: yaHalaGreen),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: widget.isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              _meta(Icons.folder, category),
+              _meta(Icons.repeat, t('$countText مرات', '$countText repeats')),
+              _meta(Icons.key, id),
+              if (lastAdId.isNotEmpty) _meta(Icons.article, lastAdId),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionButton(
+                Icons.check,
+                t('اعتماد كقسم', 'Approve section'),
+                yaHalaGreen,
+                () => _approveCategorySubtype(id, data),
+              ),
+              _actionButton(
+                Icons.close,
+                t('رفض', 'Reject'),
+                Colors.deepOrange,
+                () => _rejectCategorySubtype(id),
               ),
             ],
           ),
@@ -1460,6 +1586,77 @@ class _AdminScreenState extends State<AdminScreen>
 
     if (!mounted) return;
     _snack(t('تم رفض القسم', 'Service section rejected'));
+  }
+
+  Future<void> _approveCategorySubtype(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    final category = data['category']?.toString() ?? '';
+    final rawLabel = data['label']?.toString() ?? id;
+    final label = cleanCategorySubtypeLabel(rawLabel);
+    final value = normalizeCategorySubtypeName(label);
+
+    if (category.isEmpty || value.isEmpty) {
+      _snack(t('اسم القسم غير صالح', 'Invalid section name'));
+      return;
+    }
+
+    if (isBuiltInSubtypeForCategory(category, value)) {
+      await FirebaseFirestore.instance
+          .collection('categorySubtypeSuggestions')
+          .doc(id)
+          .update({
+            'status': 'approved',
+            'approvedAt': FieldValue.serverTimestamp(),
+          });
+      _snack(t('القسم موجود مسبقاً', 'Section already exists'));
+      return;
+    }
+
+    final batch = FirebaseFirestore.instance.batch();
+    final categoryRef = FirebaseFirestore.instance
+        .collection('categorySubtypes')
+        .doc('${category}_$value');
+    final suggestionRef = FirebaseFirestore.instance
+        .collection('categorySubtypeSuggestions')
+        .doc(id);
+
+    batch.set(categoryRef, {
+      'category': category,
+      'value': value,
+      'label': label,
+      'labelAr': label,
+      'labelEn': label,
+      'status': 'approved',
+      'sourceSuggestionId': id,
+      'approvedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    batch.update(suggestionRef, {
+      'status': 'approved',
+      'approvedValue': value,
+      'approvedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    if (!mounted) return;
+    _snack(t('تم اعتماد القسم', 'Section approved'));
+  }
+
+  Future<void> _rejectCategorySubtype(String id) async {
+    await FirebaseFirestore.instance
+        .collection('categorySubtypeSuggestions')
+        .doc(id)
+        .update({
+          'status': 'rejected',
+          'rejectedAt': FieldValue.serverTimestamp(),
+        });
+
+    if (!mounted) return;
+    _snack(t('تم رفض القسم', 'Section rejected'));
   }
 
   Future<void> _showRejectDialog(String id) async {

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 
 import '../services/ai_description_service.dart';
 import '../utils/ad_promotion.dart';
+import '../utils/category_subtype_suggestions.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
@@ -378,6 +379,21 @@ class _AddPostScreenState extends State<AddPostScreen> {
           );
         } catch (e) {
           debugPrint('Service category suggestion tracking failed: $e');
+        }
+      }
+
+      if ((selectedCategory == storesCategory ||
+              selectedCategory == 'محامين وهجرة') &&
+          selectedSubtype == 'other') {
+        try {
+          await trackCategorySubtypeSuggestion(
+            category: selectedCategory,
+            label: titleController.text,
+            adId: adRef.id,
+            userId: user.uid,
+          );
+        } catch (e) {
+          debugPrint('Category subtype suggestion tracking failed: $e');
         }
       }
 
@@ -1790,6 +1806,19 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (selectedCategory == 'خدمة') {
       return StreamBuilder<List<CategorySubtypeOption>>(
         stream: approvedServiceCategoriesStream(widget.isArabic),
+        builder: (context, snapshot) {
+          return _subtypeDropdown([...options, ...?snapshot.data]);
+        },
+      );
+    }
+
+    if (selectedCategory == storesCategory ||
+        selectedCategory == 'محامين وهجرة') {
+      return StreamBuilder<List<CategorySubtypeOption>>(
+        stream: approvedCategorySubtypesStream(
+          selectedCategory,
+          widget.isArabic,
+        ),
         builder: (context, snapshot) {
           return _subtypeDropdown([...options, ...?snapshot.data]);
         },
