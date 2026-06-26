@@ -6,12 +6,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'details_screen.dart';
 import 'add_post_screen.dart';
 import 'search_screen.dart';
-import '../services/ad_actions.dart';
 import '../utils/ad_promotion.dart';
 import '../utils/category_subtypes.dart';
 import '../utils/service_category_suggestions.dart';
 import '../utils/value_formatters.dart';
-import '../widgets/contact_actions_wrap.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/paid_category_ads.dart';
 import '../widgets/section_filter_panel.dart';
@@ -742,18 +740,9 @@ Widget _serviceCard({
   final subtitle = description.isEmpty
       ? (isArabic ? 'تفاصيل الخدمة' : 'Service details')
       : description;
-  final hasContactOptions =
-      data.containsKey('allowCall') ||
-      data.containsKey('allowSms') ||
-      data.containsKey('allowInAppMessage');
-  final allowCall = hasContactOptions ? data['allowCall'] == true : true;
-  final allowSms = hasContactOptions ? data['allowSms'] == true : true;
-  final allowInAppMessage = data['allowInAppMessage'] == true;
-  final showCall = allowCall && phone.trim().isNotEmpty;
-  final showSms = allowSms && phone.trim().isNotEmpty;
 
   return InkWell(
-    borderRadius: BorderRadius.circular(22),
+    borderRadius: BorderRadius.circular(18),
     onTap: () {
       Navigator.push(
         context,
@@ -777,113 +766,96 @@ Widget _serviceCard({
       );
     },
     child: Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isDark ? cardColor : const Color(0xFFF3F3F3),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isDark
               ? Colors.white.withValues(alpha: 0.08)
               : Colors.black.withValues(alpha: 0.08),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontSize: 19,
-              fontWeight: FontWeight.w900,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: imageUrl.isEmpty
+                ? Container(
+                    width: 76,
+                    height: 76,
+                    color: isDark ? bgDark : Colors.white,
+                    child: const Icon(Icons.handyman, color: Colors.grey),
+                  )
+                : Image.network(
+                    imageUrl,
+                    width: 76,
+                    height: 76,
+                    fit: BoxFit.cover,
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+                  ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              const Icon(Icons.location_on, size: 18, color: Colors.grey),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  city.isEmpty ? '-' : city,
-                  style: const TextStyle(color: Colors.grey),
-                  maxLines: 1,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title.isEmpty
+                      ? (isArabic ? 'خدمة بدون عنوان' : 'Untitled Service')
+                      : title,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  price,
-                  maxLines: 1,
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(
-                    color: yaHalaGold,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 20,
-                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.visibility, size: 16, color: Colors.grey),
-              const SizedBox(width: 5),
-              Text(views, style: const TextStyle(color: Colors.grey)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ContactActionsWrap(
-            actions: [
-              if (showCall)
-                ContactActionData(
-                  color: yaHalaGreen,
-                  icon: Icons.phone,
-                  label: isArabic ? 'اتصال' : 'Call',
-                  onPressed: () =>
-                      AdActions.callPhone(context, phone, isArabic: isArabic),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (city.isNotEmpty)
+                      Expanded(
+                        child: Text(
+                          city,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    if (city.isNotEmpty && price.isNotEmpty)
+                      const SizedBox(width: 8),
+                    if (price.isNotEmpty)
+                      Flexible(
+                        child: Text(
+                          price,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: const TextStyle(
+                            color: yaHalaGold,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              if (showSms)
-                ContactActionData(
-                  color: yaHalaGold,
-                  icon: Icons.sms,
-                  label: isArabic ? 'رسالة نصية' : 'Text',
-                  onPressed: () =>
-                      AdActions.sendSms(context, phone, isArabic: isArabic),
-                ),
-              if (allowInAppMessage)
-                ContactActionData(
-                  color: Colors.blueGrey,
-                  icon: Icons.chat,
-                  label: isArabic ? 'رسالة عبر يا هلا' : 'Message via Ya Hala',
-                  onPressed: () => AdActions.openInAppChat(
-                    context,
-                    adId: adId,
-                    data: data,
-                    isArabic: isArabic,
-                    isDark: isDark,
-                  ),
-                ),
-            ],
-            trailing: FavoriteButton(
-              adId: adId,
-              data: data,
-              isArabic: isArabic,
+              ],
             ),
           ),
+          const SizedBox(width: 6),
+          FavoriteButton(adId: adId, data: data, isArabic: isArabic),
         ],
       ),
     ),
